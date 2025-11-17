@@ -7,6 +7,7 @@
 #include "wheel_robot_controller.h"
 
 #include <esp_log.h>
+#include <esp_random.h>
 
 #include "mcp_server.h"
 
@@ -66,6 +67,26 @@ void WheelRobotController::ActionTask(void *arg)
 
             case ACTION_CUSTOM_SPEED:
                 controller->wheels_.setWheelSpeeds(params.left_speed, params.right_speed);
+                break;
+
+            case ACTION_DANCE_SHAKE:
+                controller->wheels_.danceShake();
+                break;
+
+            case ACTION_DANCE_SPIN:
+                controller->wheels_.danceSpin();
+                break;
+
+            case ACTION_DANCE_WAVE:
+                controller->wheels_.danceWave();
+                break;
+
+            case ACTION_DANCE_ZIGZAG:
+                controller->wheels_.danceZigzag();
+                break;
+
+            case ACTION_DANCE_MOONWALK:
+                controller->wheels_.danceMoonwalk();
                 break;
 
             default:
@@ -130,9 +151,6 @@ WheelRobotController::WheelRobotController()
         ESP_LOGE(TAG, "轮子初始化失败");
         return;
     }
-
-    // 3. 注册 MCP 工具（在队列和轮子初始化之后）
-    RegisterMcpTools();
 
     // 4. 设置初始停止状态（最后设置，确保一切就绪）
     QueueAction(ACTION_STOP);
@@ -333,7 +351,112 @@ void WheelRobotController::RegisterMcpTools()
             return result;
         });
 
-    ESP_LOGI(TAG, "MCP工具注册完成 - 共12个工具");
+    // 13. 跳舞 - 摇摆舞
+    mcp_server.AddTool(
+        "self.wheel.dance_shake",
+        "跳摇摆舞：快速左右摇摆，充满节奏感",
+        PropertyList(),
+        [this](const PropertyList &properties) -> ReturnValue
+        {
+            QueueAction(ACTION_DANCE_SHAKE);
+            return "开始跳摇摆舞 🎵";
+        });
+
+    // 14. 跳舞 - 旋转舞
+    mcp_server.AddTool(
+        "self.wheel.dance_spin",
+        "跳旋转舞：360度原地旋转，速度先慢后快再慢",
+        PropertyList(),
+        [this](const PropertyList &properties) -> ReturnValue
+        {
+            QueueAction(ACTION_DANCE_SPIN);
+            return "开始跳旋转舞 🌀";
+        });
+
+    // 15. 跳舞 - 波浪舞
+    mcp_server.AddTool(
+        "self.wheel.dance_wave",
+        "跳波浪舞：前后移动时速度呈波浪变化",
+        PropertyList(),
+        [this](const PropertyList &properties) -> ReturnValue
+        {
+            QueueAction(ACTION_DANCE_WAVE);
+            return "开始跳波浪舞 🌊";
+        });
+
+    // 16. 跳舞 - 之字舞
+    mcp_server.AddTool(
+        "self.wheel.dance_zigzag",
+        "跳之字舞：走Z字形路线，充满动感",
+        PropertyList(),
+        [this](const PropertyList &properties) -> ReturnValue
+        {
+            QueueAction(ACTION_DANCE_ZIGZAG);
+            return "开始跳之字舞 ⚡";
+        });
+
+    // 17. 跳舞 - 太空步
+    mcp_server.AddTool(
+        "self.wheel.dance_moonwalk",
+        "跳太空步：模拟Michael Jackson的标志性动作",
+        PropertyList(),
+        [this](const PropertyList &properties) -> ReturnValue
+        {
+            QueueAction(ACTION_DANCE_MOONWALK);
+            return "开始跳太空步 🌙";
+        });
+
+    // 18. 跳舞 - 随机舞蹈
+    mcp_server.AddTool(
+        "self.wheel.dance_random",
+        "跳随机舞蹈：从5种舞蹈中随机选择一种。"
+        "可选参数 dance_type: 1=摇摆舞, 2=旋转舞, 3=波浪舞, 4=之字舞, 5=太空步",
+        PropertyList({Property("dance_type", kPropertyTypeInteger, 0, 0, 5)}),
+        [this](const PropertyList &properties) -> ReturnValue
+        {
+            int dance_type = properties["dance_type"].value<int>();
+
+            // 如果 dance_type 为 0 或未指定，则随机选择
+            if (dance_type == 0)
+            {
+                dance_type = (esp_random() % 5) + 1;
+                ESP_LOGI(TAG, "随机选择舞蹈类型: %d", dance_type);
+            }
+
+            std::string dance_name;
+            int action_type;
+
+            switch (dance_type)
+            {
+            case 1:
+                action_type = ACTION_DANCE_SHAKE;
+                dance_name = "摇摆舞 🎵";
+                break;
+            case 2:
+                action_type = ACTION_DANCE_SPIN;
+                dance_name = "旋转舞 🌀";
+                break;
+            case 3:
+                action_type = ACTION_DANCE_WAVE;
+                dance_name = "波浪舞 🌊";
+                break;
+            case 4:
+                action_type = ACTION_DANCE_ZIGZAG;
+                dance_name = "之字舞 ⚡";
+                break;
+            case 5:
+                action_type = ACTION_DANCE_MOONWALK;
+                dance_name = "太空步 🌙";
+                break;
+            default:
+                return "错误：无效的舞蹈类型（应为1-5）";
+            }
+
+            QueueAction(action_type);
+            return "开始跳" + dance_name;
+        });
+
+    ESP_LOGI(TAG, "MCP工具注册完成 - 共18个工具（包括6个跳舞动作）");
 }
 
 // 全局控制器实例
@@ -346,51 +469,11 @@ void InitializeWheelRobotController()
     {
         g_wheel_robot_controller = new WheelRobotController();
         ESP_LOGI(TAG, "全局两轮机器人控制器已创建并初始化");
-
-        WheelMovements &wheels = g_wheel_robot_controller->GetWheels();
-
-        // 方案1: 运行完整硬件诊断
-        ESP_LOGI(TAG, "");
-        ESP_LOGI(TAG, "════════════════════════════════════════");
-        ESP_LOGI(TAG, "  开始硬件诊断测试");
-        ESP_LOGI(TAG, "════════════════════════════════════════");
-        wheels.runHardwareDiagnostics();
-
-        // 方案2: 简单测试 setSpeed API
-        ESP_LOGI(TAG, "");
-        ESP_LOGI(TAG, "════════════════════════════════════════");
-        ESP_LOGI(TAG, "  测试 setSpeed API");
-        ESP_LOGI(TAG, "════════════════════════════════════════");
-        ESP_LOGI(TAG, "");
-
-        vTaskDelay(pdMS_TO_TICKS(2000));
-
-        ESP_LOGI(TAG, "测试1: 单独左轮正转 (速度50, 3秒)");
-        wheels.setWheelSpeeds(50, 0);
-        vTaskDelay(pdMS_TO_TICKS(3000));
-        wheels.stopAll();
-        ESP_LOGI(TAG, "停止");
-
-        vTaskDelay(pdMS_TO_TICKS(2000));
-
-        ESP_LOGI(TAG, "测试2: 单独右轮正转 (速度50, 3秒)");
-        wheels.setWheelSpeeds(0, 50);
-        vTaskDelay(pdMS_TO_TICKS(3000));
-        wheels.stopAll();
-        ESP_LOGI(TAG, "停止");
-
-        vTaskDelay(pdMS_TO_TICKS(2000));
-
-        ESP_LOGI(TAG, "测试3: 两轮同时前进 (速度50, 3秒)");
-        wheels.moveForward(50);
-        vTaskDelay(pdMS_TO_TICKS(3000));
-        wheels.stopAll();
-        ESP_LOGI(TAG, "停止");
-
-        ESP_LOGI(TAG, "");
-        ESP_LOGI(TAG, "════════════════════════════════════════");
-        ESP_LOGI(TAG, "  测试完成");
-        ESP_LOGI(TAG, "════════════════════════════════════════");
-        ESP_LOGI(TAG, "");
     }
+}
+
+// 获取全局控制器实例
+WheelRobotController *GetWheelRobotController()
+{
+    return g_wheel_robot_controller;
 }

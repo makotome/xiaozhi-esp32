@@ -35,16 +35,21 @@ private:
     // 动作类型枚举
     enum ActionType
     {
-        ACTION_FORWARD = 1,      // 前进
-        ACTION_BACKWARD = 2,     // 后退
-        ACTION_TURN_LEFT = 3,    // 左转
-        ACTION_TURN_RIGHT = 4,   // 右转
-        ACTION_STOP = 5,         // 停止
-        ACTION_ACCELERATE = 6,   // 加速
-        ACTION_DECELERATE = 7,   // 减速
-        ACTION_CUSTOM_SPEED = 8, // 自定义左右轮速度
-        ACTION_SPIN_LEFT = 9,    // 原地左转
-        ACTION_SPIN_RIGHT = 10   // 原地右转
+        ACTION_FORWARD = 1,        // 前进
+        ACTION_BACKWARD = 2,       // 后退
+        ACTION_TURN_LEFT = 3,      // 左转
+        ACTION_TURN_RIGHT = 4,     // 右转
+        ACTION_STOP = 5,           // 停止
+        ACTION_ACCELERATE = 6,     // 加速
+        ACTION_DECELERATE = 7,     // 减速
+        ACTION_CUSTOM_SPEED = 8,   // 自定义左右轮速度
+        ACTION_SPIN_LEFT = 9,      // 原地左转
+        ACTION_SPIN_RIGHT = 10,    // 原地右转
+        ACTION_DANCE_SHAKE = 11,   // 跳舞：摇摆舞
+        ACTION_DANCE_SPIN = 12,    // 跳舞：旋转舞
+        ACTION_DANCE_WAVE = 13,    // 跳舞：波浪舞
+        ACTION_DANCE_ZIGZAG = 14,  // 跳舞：之字舞
+        ACTION_DANCE_MOONWALK = 15 // 跳舞：太空步
     };
 
     // 私有方法
@@ -66,5 +71,8 @@ public:
 
 // 全局初始化函数
 void InitializeWheelRobotController();
+
+// 获取全局控制器实例
+WheelRobotController *GetWheelRobotController();
 
 #endif // WHEEL_ROBOT_CONTROLLER_H

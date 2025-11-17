@@ -13,11 +13,13 @@
 #include "display/lcd_display.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
+#include "light_mcp_controller.h"
 #include "mcp_server.h"
 #include "otto_emoji_display.h"
 #include "power_manager.h"
 #include "system_reset.h"
 #include "wifi_board.h"
+#include "wheel_robot_controller.h"
 
 #define TAG "OttoHpRobot"
 
@@ -25,6 +27,12 @@
 
 extern void InitializeOttoController();
 extern void InitializeWheelRobotController();
+
+// 前向声明：获取全局控制器实例
+class LightMcpController;
+class WheelRobotController;
+extern LightMcpController *GetLightMcpController();
+extern WheelRobotController *GetWheelRobotController();
 
 class OttoHpRobot : public WifiBoard
 {
@@ -126,6 +134,43 @@ private:
         ::InitializeWheelRobotController();
     }
 
+    void InitializeLightController()
+    {
+        ESP_LOGI(TAG, "初始化彩色灯光控制器");
+        auto *otto_display = dynamic_cast<OttoEmojiDisplay *>(display_);
+        if (otto_display)
+        {
+            InitializeLightMcpController(otto_display);
+        }
+        else
+        {
+            ESP_LOGW(TAG, "Display is not OttoEmojiDisplay, skip light controller");
+        }
+    }
+
+    void RegisterAllMcpTools()
+    {
+        ESP_LOGI(TAG, "统一注册所有MCP工具");
+
+        // 注册灯光控制器的MCP工具
+        auto *light_controller = GetLightMcpController();
+        if (light_controller)
+        {
+            light_controller->RegisterMcpTools();
+            ESP_LOGI(TAG, "灯光MCP工具注册完成");
+        }
+
+        // 注册轮子控制器的MCP工具
+        auto *wheel_controller = GetWheelRobotController();
+        if (wheel_controller)
+        {
+            wheel_controller->RegisterMcpTools();
+            ESP_LOGI(TAG, "轮子MCP工具注册完成");
+        }
+
+        ESP_LOGI(TAG, "所有MCP工具注册完成");
+    }
+
 public:
     OttoHpRobot() : boot_button_(BOOT_BUTTON_GPIO)
     {
@@ -133,11 +178,13 @@ public:
         InitializeLcdDisplay();
         InitializeButtons();
         InitializePowerManager();
+        InitializeLightController();
 #if WHEEL_ROBOT_ENABLED
         InitializeWheelRobotController();
 #else
         InitializeOttoController();
 #endif
+        RegisterAllMcpTools(); // 在所有控制器初始化后注册MCP工具
         GetBacklight()->RestoreBrightness();
     }
 

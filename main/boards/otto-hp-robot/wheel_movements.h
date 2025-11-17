@@ -39,6 +39,13 @@ public:
 
     void runHardwareDiagnostics();
 
+    // 跳舞动作
+    void danceShake();    // 摇摆舞：左右快速摆动
+    void danceSpin();     // 旋转舞：360度旋转
+    void danceWave();     // 波浪舞：前后波浪式移动
+    void danceZigzag();   // 之字舞：Z字形移动
+    void danceMoonwalk(); // 太空步：后退时的花式移动
+
 private:
     WheelServo *_leftWheel;
     WheelServo *_rightWheel;
