@@ -63,7 +63,7 @@ bool RemoteControlServer::Start()
     // 配置 HTTP 服务器
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = SERVER_PORT;
-    config.max_uri_handlers = 12;
+    config.max_uri_handlers = 16; // 增加到16个,支持所有URI (当前13个)
     config.stack_size = 8192;
     config.task_priority = 5;
 
@@ -90,6 +90,22 @@ bool RemoteControlServer::Start()
         .user_ctx = this};
     httpd_register_uri_handler(server_, &uri_status);
 
+    // 先注册带方向的URI,避免被基础URI截获
+    httpd_uri_t uri_move_forward_direction = {
+        .uri = "/api/move/forward_direction",
+        .method = HTTP_POST,
+        .handler = HandleMoveForwardDirection,
+        .user_ctx = this};
+    httpd_register_uri_handler(server_, &uri_move_forward_direction);
+
+    httpd_uri_t uri_move_backward_direction = {
+        .uri = "/api/move/backward_direction",
+        .method = HTTP_POST,
+        .handler = HandleMoveBackwardDirection,
+        .user_ctx = this};
+    httpd_register_uri_handler(server_, &uri_move_backward_direction);
+
+    // 再注册基础URI
     httpd_uri_t uri_move_forward = {
         .uri = "/api/move/forward",
         .method = HTTP_POST,
@@ -657,6 +673,108 @@ esp_err_t RemoteControlServer::HandleDance(httpd_req_t *req)
     }
 
     ESP_LOGI(TAG, "跳舞: 类型=%d", dance_type);
+
+    return SendJsonResponse(req, "{\"success\":true}");
+}
+
+// 处理万向前进
+esp_err_t RemoteControlServer::HandleMoveForwardDirection(httpd_req_t *req)
+{
+    RemoteControlServer *server = (RemoteControlServer *)req->user_ctx;
+    char buffer[MAX_REQUEST_SIZE];
+
+    if (!ParseJsonBody(req, buffer, sizeof(buffer)))
+    {
+        return SendErrorResponse(req, "解析请求失败");
+    }
+
+    cJSON *root = cJSON_Parse(buffer);
+    if (root == nullptr)
+    {
+        return SendErrorResponse(req, "无效的JSON");
+    }
+
+    int speed = 50;
+    float direction = 0.0f;
+    int duration = 0;
+
+    cJSON *speed_item = cJSON_GetObjectItem(root, "speed");
+    if (speed_item != nullptr && cJSON_IsNumber(speed_item))
+    {
+        speed = speed_item->valueint;
+    }
+
+    cJSON *direction_item = cJSON_GetObjectItem(root, "direction");
+    if (direction_item != nullptr && cJSON_IsNumber(direction_item))
+    {
+        // 前端发送的是整数-100到100,需要转换为浮点数-1.0到1.0
+        int direction_int = direction_item->valueint;
+        direction = static_cast<float>(direction_int) / 100.0f;
+    }
+
+    cJSON *duration_item = cJSON_GetObjectItem(root, "duration_ms");
+    if (duration_item != nullptr && cJSON_IsNumber(duration_item))
+    {
+        duration = duration_item->valueint;
+    }
+
+    cJSON_Delete(root);
+
+    // 调用万向前进 (立即执行,不等待duration)
+    server->wheel_controller_->GetWheels().moveForwardWithDirection(speed, direction);
+
+    ESP_LOGI(TAG, "万向前进: 速度=%d, 方向整数=%d, 方向浮点=%.2f", speed, static_cast<int>(direction * 100), direction);
+
+    return SendJsonResponse(req, "{\"success\":true}");
+}
+
+// 处理万向后退
+esp_err_t RemoteControlServer::HandleMoveBackwardDirection(httpd_req_t *req)
+{
+    RemoteControlServer *server = (RemoteControlServer *)req->user_ctx;
+    char buffer[MAX_REQUEST_SIZE];
+
+    if (!ParseJsonBody(req, buffer, sizeof(buffer)))
+    {
+        return SendErrorResponse(req, "解析请求失败");
+    }
+
+    cJSON *root = cJSON_Parse(buffer);
+    if (root == nullptr)
+    {
+        return SendErrorResponse(req, "无效的JSON");
+    }
+
+    int speed = 50;
+    float direction = 0.0f;
+    int duration = 0;
+
+    cJSON *speed_item = cJSON_GetObjectItem(root, "speed");
+    if (speed_item != nullptr && cJSON_IsNumber(speed_item))
+    {
+        speed = speed_item->valueint;
+    }
+
+    cJSON *direction_item = cJSON_GetObjectItem(root, "direction");
+    if (direction_item != nullptr && cJSON_IsNumber(direction_item))
+    {
+        // 前端发送的是整数-100到100,需要转换为浮点数-1.0到1.0
+        int direction_int = direction_item->valueint;
+        direction = static_cast<float>(direction_int) / 100.0f;
+    }
+
+    cJSON *duration_item = cJSON_GetObjectItem(root, "duration_ms");
+    if (duration_item != nullptr && cJSON_IsNumber(duration_item))
+    {
+        duration = duration_item->valueint;
+    }
+
+    cJSON_Delete(root);
+
+    // 调用万向后退 (立即执行,不等待duration)
+    server->wheel_controller_->GetWheels().moveBackwardWithDirection(speed, direction);
+
+    ESP_LOGI(TAG, "万向后退: 速度=%d, 方向整数=%d, 方向浮点=%.2f", speed, static_cast<int>(direction * 100), direction);
 
     return SendJsonResponse(req, "{\"success\":true}");
 }

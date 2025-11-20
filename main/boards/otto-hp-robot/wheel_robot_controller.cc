@@ -89,6 +89,14 @@ void WheelRobotController::ActionTask(void *arg)
                 controller->wheels_.danceMoonwalk();
                 break;
 
+            case ACTION_FORWARD_DIRECTION:
+                controller->wheels_.moveForwardWithDirection(params.speed, params.direction);
+                break;
+
+            case ACTION_BACKWARD_DIRECTION:
+                controller->wheels_.moveBackwardWithDirection(params.speed, params.direction);
+                break;
+
             default:
                 ESP_LOGW(TAG, "未知动作类型: %d", params.action_type);
                 break;
@@ -119,13 +127,14 @@ void WheelRobotController::StartActionTaskIfNeeded()
 
 // 将动作加入队列
 void WheelRobotController::QueueAction(int action_type, int speed, int duration_ms,
-                                       int left_speed, int right_speed, int target_speed)
+                                       int left_speed, int right_speed, int target_speed,
+                                       float direction)
 {
-    ESP_LOGI(TAG, "队列动作: 类型=%d, 速度=%d, 持续=%dms, 左=%d, 右=%d, 目标=%d",
-             action_type, speed, duration_ms, left_speed, right_speed, target_speed);
+    ESP_LOGI(TAG, "队列动作: 类型=%d, 速度=%d, 持续=%dms, 左=%d, 右=%d, 目标=%d, 方向=%.2f",
+             action_type, speed, duration_ms, left_speed, right_speed, target_speed, direction);
 
     WheelActionParams params = {
-        action_type, speed, duration_ms, left_speed, right_speed, target_speed};
+        action_type, speed, duration_ms, left_speed, right_speed, target_speed, direction};
 
     xQueueSend(action_queue_, &params, portMAX_DELAY);
     StartActionTaskIfNeeded();
@@ -456,7 +465,49 @@ void WheelRobotController::RegisterMcpTools()
             return "开始跳" + dance_name;
         });
 
-    ESP_LOGI(TAG, "MCP工具注册完成 - 共18个工具（包括6个跳舞动作）");
+    // 19. 前进+方向控制（万向移动）
+    mcp_server.AddTool(
+        "self.wheel.move_forward_direction",
+        "前进并支持左右方向控制（万向移动）。"
+        "speed: 速度(0-100); "
+        "direction: 方向(-100到100, -100=完全左转, 0=直线, 100=完全右转); "
+        "duration_ms: 持续时间(毫秒，0表示持续运动)",
+        PropertyList(std::vector<Property>{
+            Property("speed", kPropertyTypeInteger, 50, 0, 100),
+            Property("direction", kPropertyTypeInteger, 0, -100, 100),
+            Property("duration_ms", kPropertyTypeInteger, 0, 0, 60000)}),
+        [this](const PropertyList &properties) -> ReturnValue
+        {
+            int speed = properties["speed"].value<int>();
+            int direction_int = properties["direction"].value<int>();
+            float direction = direction_int / 100.0f; // 转换为 -1.0 到 1.0
+            int duration_ms = properties["duration_ms"].value<int>();
+            QueueAction(ACTION_FORWARD_DIRECTION, speed, duration_ms, 0, 0, 0, direction);
+            return true;
+        });
+
+    // 20. 后退+方向控制（万向移动）
+    mcp_server.AddTool(
+        "self.wheel.move_backward_direction",
+        "后退并支持左右方向控制（万向移动）。"
+        "speed: 速度(0-100); "
+        "direction: 方向(-100到100, -100=完全左转, 0=直线, 100=完全右转); "
+        "duration_ms: 持续时间(毫秒，0表示持续运动)",
+        PropertyList(std::vector<Property>{
+            Property("speed", kPropertyTypeInteger, 50, 0, 100),
+            Property("direction", kPropertyTypeInteger, 0, -100, 100),
+            Property("duration_ms", kPropertyTypeInteger, 0, 0, 60000)}),
+        [this](const PropertyList &properties) -> ReturnValue
+        {
+            int speed = properties["speed"].value<int>();
+            int direction_int = properties["direction"].value<int>();
+            float direction = direction_int / 100.0f; // 转换为 -1.0 到 1.0
+            int duration_ms = properties["duration_ms"].value<int>();
+            QueueAction(ACTION_BACKWARD_DIRECTION, speed, duration_ms, 0, 0, 0, direction);
+            return true;
+        });
+
+    ESP_LOGI(TAG, "MCP工具注册完成 - 共20个工具（包括2个万向移动功能）");
 }
 
 // 全局控制器实例

@@ -34,6 +34,8 @@ private:
     static esp_err_t HandleStop(httpd_req_t *req);
     static esp_err_t HandleCustomSpeed(httpd_req_t *req);
     static esp_err_t HandleDance(httpd_req_t *req);
+    static esp_err_t HandleMoveForwardDirection(httpd_req_t *req);  // 万向前进
+    static esp_err_t HandleMoveBackwardDirection(httpd_req_t *req); // 万向后退
 
     // 辅助函数
     static esp_err_t SendJsonResponse(httpd_req_t *req, const char *json);

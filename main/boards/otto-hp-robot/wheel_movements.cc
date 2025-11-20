@@ -30,7 +30,7 @@
 #define MAX_SPEED 100
 
 WheelMovements::WheelMovements()
-    : _leftWheel(nullptr), _rightWheel(nullptr), _initialized(false)
+    : _leftWheel(nullptr), _rightWheel(nullptr), _initialized(false), _dance_interrupted(false)
 {
 }
 WheelMovements::~WheelMovements()
@@ -142,6 +142,101 @@ void WheelMovements::moveBackward(int speed)
     _rightWheel->setSpeed(speed); // 右轮反向（因为镜像安装）
 }
 
+void WheelMovements::moveForwardWithDirection(int speed, float direction)
+{
+    if (!_initialized)
+    {
+        ESP_LOGW(TAG, "WheelMovements not initialized");
+        return;
+    }
+
+    // 限制参数范围
+    speed = std::max(MIN_SPEED, std::min(MAX_SPEED, speed));
+    direction = std::max(-1.0f, std::min(1.0f, direction)); // -1.0 到 1.0
+
+    // 计算差速控制 - 进一步缩小速度差,让转向更平滑
+    // direction = 0: 两轮同速,直线前进
+    // direction > 0: 右转,左轮快,右轮慢 (但右轮保持至少70%速度)
+    // direction < 0: 左转,左轮慢,右轮快 (但左轮保持至少70%速度)
+
+    // 使用更小的direction系数(0.3倍),让速度差更温和,转向更平滑
+    // 例如: direction=-1.0时,慢速轮保持70%速度而不是60%
+    const float DIRECTION_FACTOR = 0.3f; // 从0.4降低到0.3,进一步减小转向强度
+
+    int leftSpeed = speed;
+    int rightSpeed = speed;
+
+    if (direction > 0)
+    {
+        // 右转: 减小右轮速度 (最多减30%,保持70%)
+        rightSpeed = static_cast<int>(speed * (1.0f - direction * DIRECTION_FACTOR));
+    }
+    else if (direction < 0)
+    {
+        // 左转: 减小左轮速度 (最多减30%,保持70%)
+        leftSpeed = static_cast<int>(speed * (1.0f + direction * DIRECTION_FACTOR)); // direction是负数
+    }
+
+    ESP_LOGI(TAG, "Forward with direction: speed=%d, dir=%.2f → left=%d, right=%d",
+             speed, direction, leftSpeed, rightSpeed);
+
+    setWheelSpeeds(leftSpeed, rightSpeed);
+}
+void WheelMovements::moveBackwardWithDirection(int speed, float direction)
+{
+    if (!_initialized)
+    {
+        ESP_LOGW(TAG, "WheelMovements not initialized");
+        return;
+    }
+
+    ESP_LOGI(TAG, "========== moveBackwardWithDirection 被调用 ==========");
+    ESP_LOGI(TAG, "输入参数: speed=%d, direction=%.2f", speed, direction);
+
+    // 限制参数范围
+    speed = std::max(MIN_SPEED, std::min(MAX_SPEED, speed));
+    direction = std::max(-1.0f, std::min(1.0f, direction));
+
+    ESP_LOGI(TAG, "参数限制后: speed=%d, direction=%.2f", speed, direction);
+
+    // 后退时的差速控制 - 进一步缩小速度差,让转向更平滑
+    // direction = 0: 两轮同速,直线后退
+    // direction > 0: 后退时右转,左轮快,右轮慢 (但右轮保持至少70%速度)
+    // direction < 0: 后退时左转,左轮慢,右轮快 (但左轮保持至少70%速度)
+
+    // 使用相同的direction系数(0.3倍),保持前进后退行为一致
+    const float DIRECTION_FACTOR = 0.3f; // 从0.4降低到0.3,进一步减小转向强度
+
+    int leftSpeed = speed;
+    int rightSpeed = speed;
+
+    if (direction > 0)
+    {
+        // 后退右转: 减小右轮速度 (最多减30%,保持70%)
+        rightSpeed = static_cast<int>(speed * (1.0f - direction * DIRECTION_FACTOR));
+        ESP_LOGI(TAG, "后退右转: direction=%.2f > 0", direction);
+    }
+    else if (direction < 0)
+    {
+        // 后退左转: 减小左轮速度 (最多减30%,保持70%)
+        leftSpeed = static_cast<int>(speed * (1.0f + direction * DIRECTION_FACTOR));
+        ESP_LOGI(TAG, "后退左转: direction=%.2f < 0", direction);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "直线后退: direction=%.2f = 0", direction);
+    }
+
+    ESP_LOGI(TAG, "计算后速度: leftSpeed=%d, rightSpeed=%d", leftSpeed, rightSpeed);
+    ESP_LOGI(TAG, "即将调用: setWheelSpeeds(-%d, -%d) = setWheelSpeeds(%d, %d)",
+             leftSpeed, rightSpeed, -leftSpeed, -rightSpeed);
+
+    // 后退时两轮都是负速度
+    setWheelSpeeds(-leftSpeed, -rightSpeed);
+
+    ESP_LOGI(TAG, "========== moveBackwardWithDirection 执行完成 ==========");
+}
+
 void WheelMovements::stopAll()
 {
     if (!_initialized)
@@ -149,10 +244,19 @@ void WheelMovements::stopAll()
         return;
     }
 
+    // 中断正在进行的舞蹈
+    _dance_interrupted = true;
+
     _leftWheel->stop();
     _rightWheel->stop();
 
     ESP_LOGI(TAG, "Stopped all wheels");
+}
+
+void WheelMovements::interruptDance()
+{
+    _dance_interrupted = true;
+    ESP_LOGI(TAG, "Dance interrupted by user");
 }
 
 void WheelMovements::turnLeft(int speed)
@@ -348,37 +452,69 @@ void WheelMovements::danceShake()
 
     ESP_LOGI(TAG, "🕺 Dance: Shake - 左右快速摇摆");
 
+    // 重置中断标志
+    _dance_interrupted = false;
+
     // 摇摆舞：节奏感强的左右摆动，带速度变化
     // 第一轮：慢速热身摇摆
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3 && !_dance_interrupted; i++)
     {
         turnLeft(50);
         vTaskDelay(pdMS_TO_TICKS(300));
+        if (_dance_interrupted)
+            break;
         turnRight(50);
         vTaskDelay(pdMS_TO_TICKS(300));
     }
 
+    if (_dance_interrupted)
+    {
+        stopAll();
+        return;
+    }
+
     // 第二轮：加速摇摆，更有活力
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 4 && !_dance_interrupted; i++)
     {
         turnLeft(75);
         vTaskDelay(pdMS_TO_TICKS(250));
+        if (_dance_interrupted)
+            break;
         turnRight(75);
         vTaskDelay(pdMS_TO_TICKS(250));
     }
 
+    if (_dance_interrupted)
+    {
+        stopAll();
+        return;
+    }
+
     // 第三轮：超快节奏摇摆
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 5 && !_dance_interrupted; i++)
     {
         turnLeft(85);
         vTaskDelay(pdMS_TO_TICKS(180));
+        if (_dance_interrupted)
+            break;
         turnRight(85);
         vTaskDelay(pdMS_TO_TICKS(180));
+    }
+
+    if (_dance_interrupted)
+    {
+        stopAll();
+        return;
     }
 
     // 结束动作：大幅度摆动后急停
     turnLeft(90);
     vTaskDelay(pdMS_TO_TICKS(400));
+    if (_dance_interrupted)
+    {
+        stopAll();
+        return;
+    }
     turnRight(90);
     vTaskDelay(pdMS_TO_TICKS(400));
 
@@ -395,13 +531,20 @@ void WheelMovements::danceSpin()
     }
 
     ESP_LOGI(TAG, "🕺 Dance: Spin - 360度旋转");
+    _dance_interrupted = false; // 重置中断标志
 
     // 旋转舞：多变的旋转组合，包含左右旋转
     // 第一段：右旋加速
-    for (int speed = 25; speed <= 80; speed += 11)
+    for (int speed = 25; speed <= 80 && !_dance_interrupted; speed += 11)
     {
         turnRight(speed);
         vTaskDelay(pdMS_TO_TICKS(250));
+    }
+
+    if (_dance_interrupted)
+    {
+        stopAll();
+        return;
     }
 
     // 保持高速右旋
@@ -456,13 +599,14 @@ void WheelMovements::danceWave()
     }
 
     ESP_LOGI(TAG, "🕺 Dance: Wave - 波浪式前后移动");
+    _dance_interrupted = false; // 重置中断标志
 
     // 波浪舞：前后移动，速度呈波浪变化，加入左右摆动
     // 5个完整的波浪循环（原来3个）
-    for (int wave = 0; wave < 5; wave++)
+    for (int wave = 0; wave < 5 && !_dance_interrupted; wave++)
     {
         // 前进波浪：速度从慢到快到慢，加入轻微摆动
-        for (int speed = 25; speed <= 75; speed += 12)
+        for (int speed = 25; speed <= 75 && !_dance_interrupted; speed += 12)
         {
             moveForward(speed);
             vTaskDelay(pdMS_TO_TICKS(150));
@@ -531,10 +675,11 @@ void WheelMovements::danceZigzag()
     }
 
     ESP_LOGI(TAG, "🕺 Dance: Zigzag - Z字形移动");
+    _dance_interrupted = false; // 重置中断标志
 
     // 之字舞：走更复杂的Z字形路线，加入速度变化和急转
     // 重复3次完整的Z字（原来2次）
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3 && !_dance_interrupted; i++)
     {
         // 第一段：加速向右前方移动（左轮快）
         for (int speed = 40; speed <= 70; speed += 15)
@@ -606,12 +751,13 @@ void WheelMovements::danceMoonwalk()
     }
 
     ESP_LOGI(TAG, "🕺 Dance: Moonwalk - 太空步");
+    _dance_interrupted = false; // 重置中断标志
 
     // 太空步：模拟Michael Jackson的标志性动作
     // 后退时带有节奏感的停顿和加速，更多变化
 
     // 第一段：经典太空步节奏（重复5次，原来3次）
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 5 && !_dance_interrupted; i++)
     {
         // 快速后退
         moveBackward(75);

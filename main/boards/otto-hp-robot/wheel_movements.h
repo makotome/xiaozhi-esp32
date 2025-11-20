@@ -28,6 +28,11 @@ public:
     void turnLeft(int speed = 50);     // 左转
     void turnRight(int speed = 50);    // 右转
 
+    // 万向移动控制 (direction范围: -1.0到1.0)
+    // -1.0 = 完全左转, 0.0 = 直线, 1.0 = 完全右转
+    void moveForwardWithDirection(int speed, float direction);  // 前进+方向控制
+    void moveBackwardWithDirection(int speed, float direction); // 后退+方向控制
+
     // 高级控制
     void accelerate(int targetSpeed, int duration_ms);  // 加速
     void decelerate(int duration_ms);                   // 减速
@@ -46,10 +51,14 @@ public:
     void danceZigzag();   // 之字舞：Z字形移动
     void danceMoonwalk(); // 太空步：后退时的花式移动
 
+    // 中断跳舞
+    void interruptDance(); // 中断正在进行的舞蹈
+
 private:
     WheelServo *_leftWheel;
     WheelServo *_rightWheel;
     bool _initialized;
+    volatile bool _dance_interrupted; // 舞蹈中断标志
 };
 
 #endif // WHEEL_MOVEMENTS_H
