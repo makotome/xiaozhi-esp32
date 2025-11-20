@@ -20,6 +20,7 @@
 #include "system_reset.h"
 #include "wifi_board.h"
 #include "wheel_robot_controller.h"
+#include "remote_control_integration.h"
 
 #define TAG "OttoHpRobot"
 
@@ -40,6 +41,7 @@ private:
     LcdDisplay *display_;
     PowerManager *power_manager_;
     Button boot_button_;
+    Button mode_button_; // 新增: MODE_BUTTON
     void InitializePowerManager()
     {
         power_manager_ =
@@ -120,6 +122,24 @@ private:
                 ResetWifiConfiguration();
             }
             app.ToggleChatState(); });
+
+        // 新增: MODE_BUTTON 点击切换模式
+        mode_button_.OnClick([this]()
+                             {
+            HandleModeButtonClick();
+            
+            // 显示当前模式和访问地址
+            if (IsRemoteControlMode()) {
+                ESP_LOGI(TAG, "=== 遥控模式已启动 ===");
+                ESP_LOGI(TAG, "访问地址: %s", GetRemoteControlUrl());
+                
+                // 在显示屏上显示提示
+                display_->ShowNotification("遥控模式");
+                display_->ShowNotification(GetRemoteControlUrl());
+            } else {
+                ESP_LOGI(TAG, "=== 已返回小智模式 ===");
+                display_->ShowNotification("小智模式");
+            } });
     }
 
     void InitializeOttoController()
@@ -172,7 +192,8 @@ private:
     }
 
 public:
-    OttoHpRobot() : boot_button_(BOOT_BUTTON_GPIO)
+    OttoHpRobot() : boot_button_(BOOT_BUTTON_GPIO),
+                    mode_button_(MODE_BUTTON_GPIO) // 新增
     {
         InitializeSpi();
         InitializeLcdDisplay();
@@ -185,7 +206,14 @@ public:
         InitializeOttoController();
 #endif
         RegisterAllMcpTools(); // 在所有控制器初始化后注册MCP工具
+
+        // 新增: 初始化遥控模式功能
+        InitializeRemoteControlMode();
+
         GetBacklight()->RestoreBrightness();
+
+        ESP_LOGI(TAG, "Otto HP Robot 初始化完成");
+        ESP_LOGI(TAG, "按 MODE_BUTTON (GPIO_%d) 切换模式", MODE_BUTTON_GPIO);
     }
 
     virtual AudioCodec *GetAudioCodec() override

@@ -46,6 +46,7 @@
 #define DISPLAY_SPI_MODE 3
 
 #define BOOT_BUTTON_GPIO GPIO_NUM_0
+#define MODE_BUTTON_GPIO GPIO_NUM_2 // 模式切换 小智模式->遥控模式（AP）
 
 #define OTTO_ROBOT_VERSION "1.4.4"
 
