@@ -21,6 +21,7 @@
 #include "wifi_board.h"
 #include "wheel_robot_controller.h"
 #include "remote_control_integration.h"
+#include "bt_gamepad_integration.h" // 新增：蓝牙摇杆模式
 
 #define TAG "OttoHpRobot"
 
@@ -123,22 +124,37 @@ private:
             }
             app.ToggleChatState(); });
 
-        // 新增: MODE_BUTTON 点击切换模式
+        // 新增: MODE_BUTTON 点击切换模式（三模式循环）
         mode_button_.OnClick([this]()
                              {
-            HandleModeButtonClick();
+            // 循环切换: 小智 -> WiFi遥控 -> 蓝牙摇杆 -> 小智
+            ModeManager::GetInstance().ToggleMode();
             
-            // 显示当前模式和访问地址
-            if (IsRemoteControlMode()) {
-                ESP_LOGI(TAG, "=== 遥控模式已启动 ===");
+            auto current_mode = ModeManager::GetInstance().GetCurrentMode();
+            const char *mode_name = ModeManager::GetModeName(current_mode);
+            
+            ESP_LOGI(TAG, "=== 已切换到: %s ===", mode_name);
+            
+            // 在显示屏上显示当前模式
+            if (display_) {
+                display_->ShowNotification(mode_name);
+            }
+            
+            // 根据模式显示额外信息
+            if (current_mode == kModeRemoteControl)
+            {
                 ESP_LOGI(TAG, "访问地址: %s", GetRemoteControlUrl());
-                
-                // 在显示屏上显示提示
-                display_->ShowNotification("遥控模式");
-                display_->ShowNotification(GetRemoteControlUrl());
-            } else {
-                ESP_LOGI(TAG, "=== 已返回小智模式 ===");
-                display_->ShowNotification("小智模式");
+                if (display_) {
+                    display_->ShowNotification(GetRemoteControlUrl());
+                }
+            }
+            else if (current_mode == kModeBtGamepad)
+            {
+                ESP_LOGI(TAG, "蓝牙设备名: %s", GetBtDeviceName());
+                if (display_) {
+                    display_->ShowNotification("请在手机蓝牙中搜索:");
+                    display_->ShowNotification(GetBtDeviceName());
+                }
             } });
     }
 
@@ -210,10 +226,14 @@ public:
         // 新增: 初始化遥控模式功能
         InitializeRemoteControlMode();
 
+        // 新增: 初始化蓝牙摇杆模式（传入显示对象以启用UI）
+        InitializeBtGamepadMode(display_);
+
         GetBacklight()->RestoreBrightness();
 
         ESP_LOGI(TAG, "Otto HP Robot 初始化完成");
         ESP_LOGI(TAG, "按 MODE_BUTTON (GPIO_%d) 切换模式", MODE_BUTTON_GPIO);
+        ESP_LOGI(TAG, "模式循环: 小智 -> WiFi遥控 -> 蓝牙摇杆");
     }
 
     virtual AudioCodec *GetAudioCodec() override

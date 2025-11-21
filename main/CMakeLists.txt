@@ -699,9 +699,18 @@ if(CONFIG_IDF_TARGET_ESP32)
                              )
 endif()
 
+# Prepare component requirements based on board configuration
+set(COMPONENT_REQUIRES "")
+
+# Add Bluetooth requirements only if enabled in board config
+if(CONFIG_BT_ENABLED)
+    list(APPEND COMPONENT_REQUIRES bt nvs_flash)
+endif()
+
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
+                    REQUIRES ${COMPONENT_REQUIRES}
                     WHOLE_ARCHIVE
                     )
 
