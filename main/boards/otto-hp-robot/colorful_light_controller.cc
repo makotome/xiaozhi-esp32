@@ -401,6 +401,33 @@ void ColorfulLightController::showCoolLight()
     setOverlayColor(color, LV_OPA_COVER);
 }
 
+void ColorfulLightController::showBlueFlash()
+{
+    // 蓝光闪烁效果 - 用于蓝牙等待连接
+    static bool flash_on = false;
+    static int counter = 0;
+
+    counter++;
+    if (counter >= 5)
+    { // 每5帧切换一次（约500ms，因为调用间隔是100ms）
+        flash_on = !flash_on;
+        counter = 0;
+    }
+
+    if (flash_on)
+    {
+        // 明亮的蓝色
+        lv_color_t color = lv_color_make(0, 100, 255);
+        setOverlayColor(color, LV_OPA_COVER);
+    }
+    else
+    {
+        // 深蓝色（暗淡）
+        lv_color_t color = lv_color_make(0, 30, 80);
+        setOverlayColor(color, LV_OPA_70);
+    }
+}
+
 // ==================== 灯光效果任务 ====================
 
 void ColorfulLightController::LightEffectTask(void *arg)
@@ -445,6 +472,11 @@ void ColorfulLightController::LightEffectTask(void *arg)
 
         case MODE_COOL_LIGHT:
             controller->showCoolLight();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            break;
+
+        case MODE_BLUE_FLASH:
+            controller->showBlueFlash();
             vTaskDelay(pdMS_TO_TICKS(100));
             break;
 

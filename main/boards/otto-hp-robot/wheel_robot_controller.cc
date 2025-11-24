@@ -10,6 +10,7 @@
 #include <esp_random.h>
 
 #include "mcp_server.h"
+#include "bt_gamepad_server.h"
 
 #define TAG "WheelRobotController"
 
@@ -360,66 +361,11 @@ void WheelRobotController::RegisterMcpTools()
             return result;
         });
 
-    // 13. 跳舞 - 摇摆舞
-    mcp_server.AddTool(
-        "self.wheel.dance_shake",
-        "跳摇摆舞：快速左右摇摆，充满节奏感",
-        PropertyList(),
-        [this](const PropertyList &properties) -> ReturnValue
-        {
-            QueueAction(ACTION_DANCE_SHAKE);
-            return "开始跳摇摆舞 🎵";
-        });
-
-    // 14. 跳舞 - 旋转舞
-    mcp_server.AddTool(
-        "self.wheel.dance_spin",
-        "跳旋转舞：360度原地旋转，速度先慢后快再慢",
-        PropertyList(),
-        [this](const PropertyList &properties) -> ReturnValue
-        {
-            QueueAction(ACTION_DANCE_SPIN);
-            return "开始跳旋转舞 🌀";
-        });
-
-    // 15. 跳舞 - 波浪舞
-    mcp_server.AddTool(
-        "self.wheel.dance_wave",
-        "跳波浪舞：前后移动时速度呈波浪变化",
-        PropertyList(),
-        [this](const PropertyList &properties) -> ReturnValue
-        {
-            QueueAction(ACTION_DANCE_WAVE);
-            return "开始跳波浪舞 🌊";
-        });
-
-    // 16. 跳舞 - 之字舞
-    mcp_server.AddTool(
-        "self.wheel.dance_zigzag",
-        "跳之字舞：走Z字形路线，充满动感",
-        PropertyList(),
-        [this](const PropertyList &properties) -> ReturnValue
-        {
-            QueueAction(ACTION_DANCE_ZIGZAG);
-            return "开始跳之字舞 ⚡";
-        });
-
-    // 17. 跳舞 - 太空步
-    mcp_server.AddTool(
-        "self.wheel.dance_moonwalk",
-        "跳太空步：模拟Michael Jackson的标志性动作",
-        PropertyList(),
-        [this](const PropertyList &properties) -> ReturnValue
-        {
-            QueueAction(ACTION_DANCE_MOONWALK);
-            return "开始跳太空步 🌙";
-        });
-
-    // 18. 跳舞 - 随机舞蹈
+    // 13. 跳舞 - 随机舞蹈
     mcp_server.AddTool(
         "self.wheel.dance_random",
-        "跳随机舞蹈：从5种舞蹈中随机选择一种。"
-        "可选参数 dance_type: 1=摇摆舞, 2=旋转舞, 3=波浪舞, 4=之字舞, 5=太空步",
+        "跳随机舞蹈：从5种舞蹈中随机选择一种（摇摆舞、旋转舞、波浪舞、之字舞、太空步）。"
+        "可选参数 dance_type: 1=摇摆舞, 2=旋转舞, 3=波浪舞, 4=之字舞, 5=太空步, 0或不指定=随机",
         PropertyList({Property("dance_type", kPropertyTypeInteger, 0, 0, 5)}),
         [this](const PropertyList &properties) -> ReturnValue
         {
@@ -465,7 +411,7 @@ void WheelRobotController::RegisterMcpTools()
             return "开始跳" + dance_name;
         });
 
-    // 19. 前进+方向控制（万向移动）
+    // 14. 前进+方向控制（万向移动）
     mcp_server.AddTool(
         "self.wheel.move_forward_direction",
         "前进并支持左右方向控制（万向移动）。"
@@ -486,7 +432,7 @@ void WheelRobotController::RegisterMcpTools()
             return true;
         });
 
-    // 20. 后退+方向控制（万向移动）
+    // 15. 后退+方向控制（万向移动）
     mcp_server.AddTool(
         "self.wheel.move_backward_direction",
         "后退并支持左右方向控制（万向移动）。"
@@ -507,7 +453,61 @@ void WheelRobotController::RegisterMcpTools()
             return true;
         });
 
-    ESP_LOGI(TAG, "MCP工具注册完成 - 共20个工具（包括2个万向移动功能）");
+    // 16. 蓝牙遥控 - 启动服务器
+    mcp_server.AddTool(
+        "self.bluetooth_gamepad.start",
+        "启动蓝牙遥控服务器（Dabble BLE游戏手柄模式）。启动后可通过Dabble App连接控制机器人",
+        PropertyList(),
+        [this](const PropertyList &properties) -> ReturnValue
+        {
+            auto &bt_server = BtGamepadServer::GetInstance();
+            if (bt_server.IsRunning())
+            {
+                return "蓝牙遥控服务器已在运行中";
+            }
+
+            bt_server.Start();
+            ESP_LOGI(TAG, "蓝牙遥控服务器已启动");
+            return "蓝牙遥控服务器启动成功，设备名称：" + std::string(bt_server.GetDeviceName());
+        });
+
+    // 17. 蓝牙遥控 - 停止服务器
+    mcp_server.AddTool(
+        "self.bluetooth_gamepad.stop",
+        "停止蓝牙遥控服务器。断开所有蓝牙连接并停止服务",
+        PropertyList(),
+        [this](const PropertyList &properties) -> ReturnValue
+        {
+            auto &bt_server = BtGamepadServer::GetInstance();
+            if (!bt_server.IsRunning())
+            {
+                return "蓝牙遥控服务器未运行";
+            }
+
+            bt_server.Stop();
+            ESP_LOGI(TAG, "蓝牙遥控服务器已停止");
+            return "蓝牙遥控服务器已停止";
+        });
+
+    // 18. 蓝牙遥控 - 查询状态
+    mcp_server.AddTool(
+        "self.bluetooth_gamepad.get_status",
+        "查询蓝牙遥控服务器状态：是否运行、是否已连接、设备名称等信息",
+        PropertyList(),
+        [this](const PropertyList &properties) -> ReturnValue
+        {
+            auto &bt_server = BtGamepadServer::GetInstance();
+
+            std::string status_json = "{\n";
+            status_json += "  \"is_running\": " + std::string(bt_server.IsRunning() ? "true" : "false") + ",\n";
+            status_json += "  \"is_connected\": " + std::string(bt_server.IsConnected() ? "true" : "false") + ",\n";
+            status_json += "  \"device_name\": \"" + std::string(bt_server.GetDeviceName()) + "\"\n";
+            status_json += "}";
+
+            return status_json;
+        });
+
+    ESP_LOGI(TAG, "MCP工具注册完成 - 共18个工具（15个wheel控制 + 3个bluetooth遥控）");
 }
 
 // 全局控制器实例

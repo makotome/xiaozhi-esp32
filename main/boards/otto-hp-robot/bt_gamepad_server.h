@@ -227,6 +227,10 @@ private:
     static float CalculateDirectionFromXY(int8_t x, int8_t y);
     static bool IsMoveBackward(int8_t y);
 
+    // ===== BLE 心跳和系统响应 =====
+    void SendHeartbeatResponse(); // 发送心跳响应（保持连接）
+    void SendBoardIdResponse();   // 发送板卡ID响应（设备识别）
+
 public:
     // ===== 禁止拷贝和赋值 =====
     BtGamepadServer(const BtGamepadServer &) = delete;

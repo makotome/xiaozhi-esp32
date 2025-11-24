@@ -49,12 +49,13 @@ static const uint8_t NUS_CHAR_RX_UUID[16] = { // RX: 设备接收App数据
 #define GATTS_APP_ID 0
 #define GATTS_NUM_HANDLE 8
 
-static uint16_t g_gatts_if = ESP_GATT_IF_NONE;
-static uint16_t g_conn_id = 0xFFFF;
-static uint16_t g_service_handle = 0;
-static uint16_t g_char_tx_handle = 0;
-static uint16_t g_char_rx_handle = 0;
-static bool g_is_connected = false;
+// 全局 BLE 句柄（供心跳和响应函数访问）
+uint16_t g_gatts_if = ESP_GATT_IF_NONE;
+uint16_t g_conn_id = 0xFFFF;
+uint16_t g_service_handle = 0;
+uint16_t g_char_tx_handle = 0;
+uint16_t g_char_rx_handle = 0;
+bool g_is_connected = false;
 
 // ==================== 静态成员初始化 ====================
 
@@ -194,6 +195,18 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
         g_is_connected = true;
         BtGamepadServer::GetInstance().SetConnected(true);
 
+        // 停止蓝光闪烁，恢复正常显示
+        auto *light_controller = GetLightMcpController();
+        if (light_controller != nullptr)
+        {
+            auto *colorful_light = light_controller->getLightController();
+            if (colorful_light != nullptr)
+            {
+                colorful_light->stopAllEffects();
+                ESP_LOGI(TAG, "蓝光闪烁已停止，恢复正常显示");
+            }
+        }
+
         // 更新连接参数
         esp_ble_conn_update_params_t conn_params = {0};
         memcpy(conn_params.bda, param->connect.remote_bda, sizeof(esp_bd_addr_t));
@@ -210,6 +223,18 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
         g_is_connected = false;
         g_conn_id = 0xFFFF;
         BtGamepadServer::GetInstance().SetConnected(false);
+
+        // 重新启动蓝光闪烁，提示等待连接
+        auto *light_controller = GetLightMcpController();
+        if (light_controller != nullptr)
+        {
+            auto *colorful_light = light_controller->getLightController();
+            if (colorful_light != nullptr)
+            {
+                colorful_light->setLightMode(ColorfulLightController::MODE_BLUE_FLASH);
+                ESP_LOGI(TAG, "蓝光闪烁已重启，等待新连接");
+            }
+        }
 
         // 重新开始广播
         esp_ble_adv_params_t adv_params = BtGamepadServer::GetAdvParams();
@@ -352,6 +377,18 @@ bool BtGamepadServer::Start()
     ESP_LOGI(TAG, "设备名称: %s", DEVICE_NAME);
     ESP_LOGI(TAG, "等待 Dabble App 连接...");
 
+    // 启动蓝光闪烁效果，提示等待连接
+    auto *light_controller = GetLightMcpController();
+    if (light_controller != nullptr)
+    {
+        auto *colorful_light = light_controller->getLightController();
+        if (colorful_light != nullptr)
+        {
+            colorful_light->setLightMode(ColorfulLightController::MODE_BLUE_FLASH);
+            ESP_LOGI(TAG, "蓝光闪烁已启动，提示等待蓝牙连接");
+        }
+    }
+
     return true;
 }
 
@@ -493,18 +530,19 @@ void BtGamepadServer::ParseDabbleData(const uint8_t *data, size_t length)
     {
         uint8_t function_id = data[2];
 
-        // 0x01 = CHECK_CONNECTION - 连接检查
-        // 0x03 = BOARDID_REQUEST - 板卡ID请求
+        // 0x01 = CHECK_CONNECTION - 连接检查（心跳）
         if (function_id == 0x01)
         {
-            ESP_LOGI(TAG, "收到连接检查命令，发送确认响应");
-            // 可以发送响应确认连接（可选）
+            ESP_LOGI(TAG, "💓 收到心跳检查，发送确认响应");
+            SendHeartbeatResponse();
+            return; // 心跳命令不需要继续处理
         }
+        // 0x03 = BOARDID_REQUEST - 板卡ID请求
         else if (function_id == 0x03)
         {
-            ESP_LOGI(TAG, "收到板卡ID请求，发送ESP32-S3标识");
-            // 发送板卡类型响应（可选，Dabble 用于识别设备类型）
-            // 格式: [0xFF][0x00][0x03][0x01][0x04][BoardID][1][5][1][0x00]
+            ESP_LOGI(TAG, "📋 收到板卡ID请求，发送ESP32-S3标识");
+            SendBoardIdResponse();
+            return; // 板卡ID请求不需要继续处理
         }
     }
 
@@ -1057,6 +1095,122 @@ bool BtGamepadServer::IsMoveBackward(int8_t y)
 {
     // Y 轴正值为前进，负值为后退
     return y < 0;
+}
+
+// ==================== BLE 心跳和系统响应 ====================
+
+/**
+ * 发送心跳响应
+ *
+ * 原理：
+ * - Dabble App 定期发送 CHECK_CONNECTION 命令 (0xFF 0x00 0x01)
+ * - 设备收到后需要回复确认，证明连接仍然活跃
+ * - 如果长时间不响应，App 可能认为设备断开并关闭连接
+ *
+ * 数据格式：
+ *   [0xFF][0x00][0x01][0x00]
+ *   ↑     ↑     ↑     ↑
+ *   帧头  模块  功能  结束
+ */
+void BtGamepadServer::SendHeartbeatResponse()
+{
+    if (!is_connected_)
+    {
+        ESP_LOGW(TAG, "未连接，无法发送心跳响应");
+        return;
+    }
+
+    // Dabble 心跳响应格式
+    uint8_t heartbeat[] = {0xFF, 0x00, 0x01, 0x00};
+
+    // 通过 BLE TX 特征发送数据
+    if (g_gatts_if != ESP_GATT_IF_NONE && g_conn_id != 0xFFFF && g_char_tx_handle != 0)
+    {
+        esp_err_t ret = esp_ble_gatts_send_indicate(
+            g_gatts_if,
+            g_conn_id,
+            g_char_tx_handle,
+            sizeof(heartbeat),
+            heartbeat,
+            false // 不需要确认
+        );
+
+        if (ret == ESP_OK)
+        {
+            ESP_LOGD(TAG, "💓 心跳响应已发送");
+        }
+        else
+        {
+            ESP_LOGW(TAG, "心跳响应发送失败: %s", esp_err_to_name(ret));
+        }
+    }
+    else
+    {
+        ESP_LOGW(TAG, "BLE 句柄无效，无法发送心跳");
+    }
+}
+
+/**
+ * 发送板卡ID响应
+ *
+ * 原理：
+ * - Dabble App 连接时会查询设备类型（Arduino、ESP32等）
+ * - 设备需要回复板卡ID，App 据此调整界面和功能
+ * - ESP32 板卡ID = 4
+ *
+ * 数据格式：
+ *   [0xFF][0x00][0x03][0x01][0x04][BoardID][1][5][1][0x00]
+ *   ↑     ↑     ↑     ↑     ↑     ↑        ↑ ↑ ↑ ↑
+ *   帧头  模块  功能  长度  板类   ESP32    固定参数  结束
+ */
+void BtGamepadServer::SendBoardIdResponse()
+{
+    if (!is_connected_)
+    {
+        ESP_LOGW(TAG, "未连接，无法发送板卡ID响应");
+        return;
+    }
+
+    // Dabble 板卡ID响应格式
+    // Board IDs: Mega=1, Uno=2, Nano=3, ESP32=4, ESP8266=5
+    uint8_t board_id_response[] = {
+        0xFF, // 帧头
+        0x00, // 模块ID (Dabble主控)
+        0x03, // 功能ID (BOARDID_RESPONSE)
+        0x01, // 数据长度
+        0x04, // 板卡类型 (ESP32=4)
+        0x04, // 板卡ID (重复)
+        0x01, // 固定参数1
+        0x05, // 固定参数2
+        0x01, // 固定参数3
+        0x00  // 结束符
+    };
+
+    // 通过 BLE TX 特征发送数据
+    if (g_gatts_if != ESP_GATT_IF_NONE && g_conn_id != 0xFFFF && g_char_tx_handle != 0)
+    {
+        esp_err_t ret = esp_ble_gatts_send_indicate(
+            g_gatts_if,
+            g_conn_id,
+            g_char_tx_handle,
+            sizeof(board_id_response),
+            board_id_response,
+            false // 不需要确认
+        );
+
+        if (ret == ESP_OK)
+        {
+            ESP_LOGI(TAG, "📋 板卡ID响应已发送 (ESP32-S3)");
+        }
+        else
+        {
+            ESP_LOGW(TAG, "板卡ID响应发送失败: %s", esp_err_to_name(ret));
+        }
+    }
+    else
+    {
+        ESP_LOGW(TAG, "BLE 句柄无效，无法发送板卡ID");
+    }
 }
 
 // ==================== BLE 配置（静态成员）====================

@@ -43,7 +43,8 @@ public:
         MODE_RAINBOW,     // 彩虹渐变
         MODE_FLASH,       // 闪烁效果
         MODE_WARM_LIGHT,  // 暖光模式（淡黄色）
-        MODE_COOL_LIGHT   // 冷光模式（淡蓝色）
+        MODE_COOL_LIGHT,  // 冷光模式（淡蓝色）
+        MODE_BLUE_FLASH   // 蓝光闪烁（蓝牙等待连接）
     };
 
     ColorfulLightController(OttoEmojiDisplay *display);
@@ -90,6 +91,7 @@ private:
     void showFlash();
     void showWarmLight();
     void showCoolLight();
+    void showBlueFlash(); // 蓝光闪烁（蓝牙等待连接）
 
     // 辅助函数
     void createLightOverlay();

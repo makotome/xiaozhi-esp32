@@ -11,6 +11,7 @@
 
 #include "mode_manager.h"
 #include "remote_control_server.h"
+#include "application.h"
 #include <esp_log.h>
 
 #define RC_TAG "RemoteControlIntegration"
@@ -37,12 +38,19 @@ inline void InitializeRemoteControlMode()
             // 进入遥控模式
             ESP_LOGI(RC_TAG, "进入遥控模式,启动 Web 服务器...");
             
+            // 【关键】禁用小智的唤醒词检测，避免资源冲突
+            auto& app = Application::GetInstance();
+            app.GetAudioService().EnableWakeWordDetection(false);
+            ESP_LOGI(RC_TAG, "已禁用语音唤醒检测");
+            
             // 启动 Web 服务器
             if (RemoteControlServer::GetInstance().Start()) {
                 ESP_LOGI(RC_TAG, "遥控 Web 服务器已启动: %s", 
                          RemoteControlServer::GetInstance().GetServerUrl());
             } else {
                 ESP_LOGE(RC_TAG, "遥控 Web 服务器启动失败");
+                // 启动失败时恢复唤醒词检测
+                app.GetAudioService().EnableWakeWordDetection(true);
             }
             
         } else if (new_mode == kModeXiaozhi) {
@@ -52,6 +60,11 @@ inline void InitializeRemoteControlMode()
             // 停止 Web 服务器
             RemoteControlServer::GetInstance().Stop();
             ESP_LOGI(RC_TAG, "遥控 Web 服务器已停止");
+            
+            // 【关键】恢复小智的唤醒词检测
+            auto& app = Application::GetInstance();
+            app.GetAudioService().EnableWakeWordDetection(true);
+            ESP_LOGI(RC_TAG, "已恢复语音唤醒检测");
         } });
 
     ESP_LOGI(RC_TAG, "遥控模式功能初始化完成");

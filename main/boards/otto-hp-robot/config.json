@@ -4,7 +4,6 @@
         {
             "name": "otto-hp-robot",
             "sdkconfig_append": [
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/16m.csv\"",
                 "CONFIG_LV_USE_GIF=y",
                 "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
                 "CONFIG_ESP_CONSOLE_NONE=y",

@@ -21,7 +21,7 @@
 #include "wifi_board.h"
 #include "wheel_robot_controller.h"
 #include "remote_control_integration.h"
-#include "bt_gamepad_integration.h" // 新增：蓝牙摇杆模式
+#include "bt_gamepad_integration.h"
 
 #define TAG "OttoHpRobot"
 
@@ -42,7 +42,8 @@ private:
     LcdDisplay *display_;
     PowerManager *power_manager_;
     Button boot_button_;
-    Button mode_button_; // 新增: MODE_BUTTON
+    Button mode_button_;
+
     void InitializePowerManager()
     {
         power_manager_ =
@@ -124,22 +125,22 @@ private:
             }
             app.ToggleChatState(); });
 
-        // 新增: MODE_BUTTON 点击切换模式（三模式循环）
+        // MODE_BUTTON 点击切换模式（三模式循环）
         mode_button_.OnClick([this]()
                              {
             // 循环切换: 小智 -> WiFi遥控 -> 蓝牙摇杆 -> 小智
             ModeManager::GetInstance().ToggleMode();
-            
+
             auto current_mode = ModeManager::GetInstance().GetCurrentMode();
             const char *mode_name = ModeManager::GetModeName(current_mode);
-            
+
             ESP_LOGI(TAG, "=== 已切换到: %s ===", mode_name);
-            
+
             // 在显示屏上显示当前模式
             if (display_) {
                 display_->ShowNotification(mode_name);
             }
-            
+
             // 根据模式显示额外信息
             if (current_mode == kModeRemoteControl)
             {
@@ -208,8 +209,7 @@ private:
     }
 
 public:
-    OttoHpRobot() : boot_button_(BOOT_BUTTON_GPIO),
-                    mode_button_(MODE_BUTTON_GPIO) // 新增
+    OttoHpRobot() : boot_button_(BOOT_BUTTON_GPIO), mode_button_(MODE_BUTTON_GPIO)
     {
         InitializeSpi();
         InitializeLcdDisplay();
@@ -223,10 +223,10 @@ public:
 #endif
         RegisterAllMcpTools(); // 在所有控制器初始化后注册MCP工具
 
-        // 新增: 初始化遥控模式功能
+        // 初始化遥控模式功能
         InitializeRemoteControlMode();
 
-        // 新增: 初始化蓝牙摇杆模式（传入显示对象以启用UI）
+        // 初始化蓝牙摇杆模式（传入显示对象以启用UI）
         InitializeBtGamepadMode(display_);
 
         GetBacklight()->RestoreBrightness();

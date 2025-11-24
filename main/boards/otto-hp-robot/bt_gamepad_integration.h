@@ -16,6 +16,7 @@
 #include "bt_gamepad_server.h"
 #include "bt_gamepad_display.h"
 #include "remote_control_server.h"
+#include "application.h"
 #include <esp_log.h>
 
 #define BT_INTEGRATION_TAG "BtGamepadIntegration"
@@ -68,6 +69,11 @@ inline void InitializeBtGamepadMode(Display *display = nullptr)
                     RemoteControlServer::GetInstance().Stop();
                 }
 
+                // 【关键】禁用小智的唤醒词检测，避免资源冲突
+                auto &app = Application::GetInstance();
+                app.GetAudioService().EnableWakeWordDetection(false);
+                ESP_LOGI(BT_INTEGRATION_TAG, "  已禁用语音唤醒检测");
+
                 // 启动蓝牙服务器
                 if (BtGamepadServer::GetInstance().Start())
                 {
@@ -86,6 +92,8 @@ inline void InitializeBtGamepadMode(Display *display = nullptr)
                 else
                 {
                     ESP_LOGE(BT_INTEGRATION_TAG, "✗ 蓝牙服务器启动失败");
+                    // 启动失败时恢复唤醒词检测
+                    app.GetAudioService().EnableWakeWordDetection(true);
                 }
             }
 
@@ -103,6 +111,14 @@ inline void InitializeBtGamepadMode(Display *display = nullptr)
 
                 BtGamepadServer::GetInstance().Stop();
                 ESP_LOGI(BT_INTEGRATION_TAG, "✓ 蓝牙摇杆模式已关闭");
+
+                // 【关键】恢复小智的唤醒词检测
+                if (new_mode == kModeXiaozhi)
+                {
+                    auto &app = Application::GetInstance();
+                    app.GetAudioService().EnableWakeWordDetection(true);
+                    ESP_LOGI(BT_INTEGRATION_TAG, "  已恢复语音唤醒检测");
+                }
             }
         });
 
