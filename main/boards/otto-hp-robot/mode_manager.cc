@@ -132,33 +132,6 @@ void ModeManager::SwitchToRemoteControlMode()
     NotifyModeChanged(old_mode, current_mode_);
 }
 
-// 切换到蓝牙摇杆模式
-void ModeManager::SwitchToBtGamepadMode()
-{
-    if (mode_mutex_ == nullptr)
-    {
-        ESP_LOGE(TAG, "模式管理器未初始化");
-        return;
-    }
-
-    xSemaphoreTake(mode_mutex_, portMAX_DELAY);
-
-    if (current_mode_ == kModeBtGamepad)
-    {
-        ESP_LOGW(TAG, "已经在蓝牙摇杆模式，无需切换");
-        xSemaphoreGive(mode_mutex_);
-        return;
-    }
-
-    DeviceMode old_mode = current_mode_;
-    current_mode_ = kModeBtGamepad;
-
-    xSemaphoreGive(mode_mutex_);
-
-    // 通知监听者
-    NotifyModeChanged(old_mode, current_mode_);
-}
-
 // 切换模式 (在三种模式间循环切换)
 void ModeManager::ToggleMode()
 {
@@ -178,9 +151,6 @@ void ModeManager::ToggleMode()
         current_mode_ = kModeRemoteControl;
         break;
     case kModeRemoteControl:
-        current_mode_ = kModeBtGamepad;
-        break;
-    case kModeBtGamepad:
         current_mode_ = kModeXiaozhi;
         break;
     default:
@@ -213,8 +183,6 @@ const char *ModeManager::GetModeName(DeviceMode mode)
         return "小智模式";
     case kModeRemoteControl:
         return "WiFi遥控模式";
-    case kModeBtGamepad:
-        return "蓝牙摇杆模式";
     default:
         return "未知模式";
     }

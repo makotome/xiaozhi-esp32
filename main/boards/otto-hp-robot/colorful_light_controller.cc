@@ -225,6 +225,11 @@ void ColorfulLightController::destroyLightOverlay()
     }
 
     effect_active_ = false;
+
+    // 强制刷新整个屏幕，确保底层内容重新显示
+    lv_obj_invalidate(lv_screen_active());
+
+    ESP_LOGI(TAG, "灯光覆盖层已销毁，屏幕已刷新");
 }
 
 void ColorfulLightController::setOverlayColor(lv_color_t color, uint8_t opacity)

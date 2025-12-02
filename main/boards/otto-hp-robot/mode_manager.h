@@ -15,9 +15,8 @@
 // 设备运行模式枚举
 enum DeviceMode
 {
-    kModeXiaozhi,       // 小智对话模式 (默认)
-    kModeRemoteControl, // WiFi 遥控模式
-    kModeBtGamepad      // 蓝牙摇杆模式
+    kModeXiaozhi,      // 小智对话模式 (默认)
+    kModeRemoteControl // WiFi 遥控模式
 };
 
 // 模式管理器 - 单例模式
@@ -60,10 +59,7 @@ public:
     // 切换到遥控模式
     void SwitchToRemoteControlMode();
 
-    // 切换到蓝牙摇杆模式
-    void SwitchToBtGamepadMode();
-
-    // 切换模式 (在三种模式间循环切换)
+    // 切换模式 (在两种模式间循环切换)
     void ToggleMode();
 
     // 注册模式切换回调

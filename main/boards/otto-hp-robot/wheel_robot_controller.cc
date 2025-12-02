@@ -10,7 +10,6 @@
 #include <esp_random.h>
 
 #include "mcp_server.h"
-#include "bt_gamepad_server.h"
 
 #define TAG "WheelRobotController"
 
@@ -453,61 +452,7 @@ void WheelRobotController::RegisterMcpTools()
             return true;
         });
 
-    // 16. 蓝牙遥控 - 启动服务器
-    mcp_server.AddTool(
-        "self.bluetooth_gamepad.start",
-        "启动蓝牙遥控服务器（Dabble BLE游戏手柄模式）。启动后可通过Dabble App连接控制机器人",
-        PropertyList(),
-        [this](const PropertyList &properties) -> ReturnValue
-        {
-            auto &bt_server = BtGamepadServer::GetInstance();
-            if (bt_server.IsRunning())
-            {
-                return "蓝牙遥控服务器已在运行中";
-            }
-
-            bt_server.Start();
-            ESP_LOGI(TAG, "蓝牙遥控服务器已启动");
-            return "蓝牙遥控服务器启动成功，设备名称：" + std::string(bt_server.GetDeviceName());
-        });
-
-    // 17. 蓝牙遥控 - 停止服务器
-    mcp_server.AddTool(
-        "self.bluetooth_gamepad.stop",
-        "停止蓝牙遥控服务器。断开所有蓝牙连接并停止服务",
-        PropertyList(),
-        [this](const PropertyList &properties) -> ReturnValue
-        {
-            auto &bt_server = BtGamepadServer::GetInstance();
-            if (!bt_server.IsRunning())
-            {
-                return "蓝牙遥控服务器未运行";
-            }
-
-            bt_server.Stop();
-            ESP_LOGI(TAG, "蓝牙遥控服务器已停止");
-            return "蓝牙遥控服务器已停止";
-        });
-
-    // 18. 蓝牙遥控 - 查询状态
-    mcp_server.AddTool(
-        "self.bluetooth_gamepad.get_status",
-        "查询蓝牙遥控服务器状态：是否运行、是否已连接、设备名称等信息",
-        PropertyList(),
-        [this](const PropertyList &properties) -> ReturnValue
-        {
-            auto &bt_server = BtGamepadServer::GetInstance();
-
-            std::string status_json = "{\n";
-            status_json += "  \"is_running\": " + std::string(bt_server.IsRunning() ? "true" : "false") + ",\n";
-            status_json += "  \"is_connected\": " + std::string(bt_server.IsConnected() ? "true" : "false") + ",\n";
-            status_json += "  \"device_name\": \"" + std::string(bt_server.GetDeviceName()) + "\"\n";
-            status_json += "}";
-
-            return status_json;
-        });
-
-    ESP_LOGI(TAG, "MCP工具注册完成 - 共18个工具（15个wheel控制 + 3个bluetooth遥控）");
+    ESP_LOGI(TAG, "MCP工具注册完成 - 共15个工具（15个wheel控制）");
 }
 
 // 全局控制器实例

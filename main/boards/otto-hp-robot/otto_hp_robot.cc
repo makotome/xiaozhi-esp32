@@ -21,13 +21,9 @@
 #include "wifi_board.h"
 #include "wheel_robot_controller.h"
 #include "remote_control_integration.h"
-#include "bt_gamepad_integration.h"
 
 #define TAG "OttoHpRobot"
 
-#define WHEEL_ROBOT_ENABLED 1
-
-extern void InitializeOttoController();
 extern void InitializeWheelRobotController();
 
 // 前向声明：获取全局控制器实例
@@ -125,44 +121,32 @@ private:
             }
             app.ToggleChatState(); });
 
-        // MODE_BUTTON 点击切换模式（三模式循环）
+        // MODE_BUTTON 点击切换模式（两模式循环）
         mode_button_.OnClick([this]()
                              {
-            // 循环切换: 小智 -> WiFi遥控 -> 蓝牙摇杆 -> 小智
-            ModeManager::GetInstance().ToggleMode();
+                                 // 循环切换: 小智 -> WiFi遥控 -> 小智
+                                 ModeManager::GetInstance().ToggleMode();
 
-            auto current_mode = ModeManager::GetInstance().GetCurrentMode();
-            const char *mode_name = ModeManager::GetModeName(current_mode);
+                                 auto current_mode = ModeManager::GetInstance().GetCurrentMode();
+                                 const char *mode_name = ModeManager::GetModeName(current_mode);
 
-            ESP_LOGI(TAG, "=== 已切换到: %s ===", mode_name);
+                                 ESP_LOGI(TAG, "=== 已切换到: %s ===", mode_name);
 
-            // 在显示屏上显示当前模式
-            if (display_) {
-                display_->ShowNotification(mode_name);
-            }
+                                 // 在显示屏上显示当前模式
+                                 if (display_)
+                                 {
+                                     display_->ShowNotification(mode_name);
+                                 }
 
-            // 根据模式显示额外信息
-            if (current_mode == kModeRemoteControl)
-            {
-                ESP_LOGI(TAG, "访问地址: %s", GetRemoteControlUrl());
-                if (display_) {
-                    display_->ShowNotification(GetRemoteControlUrl());
-                }
-            }
-            else if (current_mode == kModeBtGamepad)
-            {
-                ESP_LOGI(TAG, "蓝牙设备名: %s", GetBtDeviceName());
-                if (display_) {
-                    display_->ShowNotification("请在手机蓝牙中搜索:");
-                    display_->ShowNotification(GetBtDeviceName());
-                }
-            } });
-    }
-
-    void InitializeOttoController()
-    {
-        ESP_LOGI(TAG, "初始化Otto机器人MCP控制器");
-        ::InitializeOttoController();
+                                 // 根据模式显示额外信息
+                                 if (current_mode == kModeRemoteControl)
+                                 {
+                                     ESP_LOGI(TAG, "访问地址: %s", GetRemoteControlUrl());
+                                     if (display_)
+                                     {
+                                         display_->ShowNotification(GetRemoteControlUrl());
+                                     }
+                                 } });
     }
 
     void InitializeWheelRobotController()
@@ -215,25 +199,17 @@ public:
         InitializeLcdDisplay();
         InitializeButtons();
         InitializePowerManager();
+
+        // 初始化各个控制器
         InitializeLightController();
-#if WHEEL_ROBOT_ENABLED
         InitializeWheelRobotController();
-#else
-        InitializeOttoController();
-#endif
-        RegisterAllMcpTools(); // 在所有控制器初始化后注册MCP工具
-
-        // 初始化遥控模式功能
-        InitializeRemoteControlMode();
-
-        // 初始化蓝牙摇杆模式（传入显示对象以启用UI）
-        InitializeBtGamepadMode(display_);
-
+        RegisterAllMcpTools();         // 在所有控制器初始化后注册MCP工具
+        InitializeRemoteControlMode(); // 初始化遥控模式功能
         GetBacklight()->RestoreBrightness();
 
         ESP_LOGI(TAG, "Otto HP Robot 初始化完成");
         ESP_LOGI(TAG, "按 MODE_BUTTON (GPIO_%d) 切换模式", MODE_BUTTON_GPIO);
-        ESP_LOGI(TAG, "模式循环: 小智 -> WiFi遥控 -> 蓝牙摇杆");
+        ESP_LOGI(TAG, "模式循环: 小智 -> WiFi遥控"); // 修改日志信息
     }
 
     virtual AudioCodec *GetAudioCodec() override
