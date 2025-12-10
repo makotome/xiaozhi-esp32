@@ -420,6 +420,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_OTTO_HP_ROBOT
         bool "ottoHpRobot"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_CUBE_ROBOT
+        bool "cubeRobot"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ELECTRON_BOT
         bool "electronBot"
         depends on IDF_TARGET_ESP32S3
