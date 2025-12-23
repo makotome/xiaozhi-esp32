@@ -4,7 +4,7 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_log.h>
-#include <wifi_station.h>
+#include <wifi_manager.h>
 
 #include "application.h"
 #include "codecs/no_audio_codec.h"
@@ -116,8 +116,8 @@ private:
                              {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting &&
-                !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+                !WifiManager::GetInstance().IsConnected()) {
+                StartWifiConfigMode();
             }
             app.ToggleChatState(); });
 

@@ -11,6 +11,8 @@
 #include "config.h"
 #include <driver/ledc.h>
 #include <esp_log.h>
+#include <esp_random.h>
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <algorithm>
@@ -30,7 +32,8 @@
 #define MAX_SPEED 100
 
 WheelMovements::WheelMovements()
-    : _leftWheel(nullptr), _rightWheel(nullptr), _initialized(false), _dance_interrupted(false)
+    : _leftWheel(nullptr), _rightWheel(nullptr), _initialized(false), _dance_interrupted(false),
+      _last_speaking_gesture_time(0)
 {
 }
 WheelMovements::~WheelMovements()
@@ -59,10 +62,10 @@ bool WheelMovements::init()
     ESP_LOGI(TAG, "╚════════════════════════════════════════════════════╝");
     ESP_LOGI(TAG, "");
 
-    // 创建左轮舵机（使用 LEFT_LEG_PIN=GPIO17, Channel 0, Timer 2）
+    // 创建左轮舵机（使用 LEFT_HAND_PIN=GPIO8, Channel 2, Timer 2）
     ESP_LOGI(TAG, "→ 创建左轮: GPIO=%d, Channel=%d, Timer=%d",
-             LEFT_LEG_PIN, LEFT_WHEEL_CHANNEL, LEFT_WHEEL_TIMER);
-    _leftWheel = new WheelServo(LEFT_LEG_PIN, LEFT_WHEEL_CHANNEL, LEFT_WHEEL_TIMER);
+             LEFT_HAND_PIN, LEFT_WHEEL_CHANNEL, LEFT_WHEEL_TIMER);
+    _leftWheel = new WheelServo(LEFT_HAND_PIN, LEFT_WHEEL_CHANNEL, LEFT_WHEEL_TIMER);
     if (!_leftWheel || !_leftWheel->init())
     {
         ESP_LOGE(TAG, "❌ Failed to initialize left wheel");
@@ -73,10 +76,10 @@ bool WheelMovements::init()
     ESP_LOGI(TAG, "✅ 左轮初始化成功");
     ESP_LOGI(TAG, "");
 
-    // 创建右轮舵机（使用 LEFT_FOOT_PIN=GPIO18, Channel 1, Timer 3）
+    // 创建右轮舵机（使用 RIGHT_HAND_PIN=GPIO38, Channel 3, Timer 3）
     ESP_LOGI(TAG, "→ 创建右轮: GPIO=%d, Channel=%d, Timer=%d",
-             LEFT_FOOT_PIN, RIGHT_WHEEL_CHANNEL, RIGHT_WHEEL_TIMER);
-    _rightWheel = new WheelServo(LEFT_FOOT_PIN, RIGHT_WHEEL_CHANNEL, RIGHT_WHEEL_TIMER);
+             RIGHT_HAND_PIN, RIGHT_WHEEL_CHANNEL, RIGHT_WHEEL_TIMER);
+    _rightWheel = new WheelServo(RIGHT_HAND_PIN, RIGHT_WHEEL_CHANNEL, RIGHT_WHEEL_TIMER);
     if (!_rightWheel || !_rightWheel->init())
     {
         ESP_LOGE(TAG, "❌ Failed to initialize right wheel");
@@ -93,8 +96,8 @@ bool WheelMovements::init()
     ESP_LOGI(TAG, "");
     ESP_LOGI(TAG, "╔════════════════════════════════════════════════════╗");
     ESP_LOGI(TAG, "║    WheelMovements 初始化完成                       ║");
-    ESP_LOGI(TAG, "║    左轮: GPIO17, Ch2, Timer2                       ║");
-    ESP_LOGI(TAG, "║    右轮: GPIO18, Ch3, Timer3                       ║");
+    ESP_LOGI(TAG, "║    左轮: GPIO8, Ch2, Timer2                        ║");
+    ESP_LOGI(TAG, "║    右轮: GPIO38, Ch3, Timer3                       ║");
     ESP_LOGI(TAG, "╚════════════════════════════════════════════════════╝");
     ESP_LOGI(TAG, "");
 
@@ -665,7 +668,180 @@ void WheelMovements::danceWave()
 
     ESP_LOGI(TAG, "✅ Dance Wave completed");
 }
+// ==================== 讲话时的自然动作 ====================
 
+// 小幅度"点头"动作（前后微动）
+void WheelMovements::speakingGestureNod()
+{
+    if (!_initialized)
+    {
+        return;
+    }
+
+    // 缓慢前倾
+    moveForward(8);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // 停顿
+    stopAll();
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    // 缓慢后退回位（速度略快一点确保回到原位）
+    moveBackward(10);
+    vTaskDelay(pdMS_TO_TICKS(550));
+
+    // 最后停顿
+    stopAll();
+    vTaskDelay(pdMS_TO_TICKS(100));
+}
+
+// 小幅度"摇头"动作（左右微动）
+void WheelMovements::speakingGestureShake()
+{
+    if (!_initialized)
+    {
+        return;
+    }
+
+    // 缓慢地向左转
+    turnLeft(8);
+    vTaskDelay(pdMS_TO_TICKS(450));
+
+    // 停顿
+    stopAll();
+    vTaskDelay(pdMS_TO_TICKS(150));
+
+    // 缓慢地向右转（速度加快，时间缩短以平衡）
+    turnRight(10);
+    vTaskDelay(pdMS_TO_TICKS(680)); // 调整为 680ms，确保左右转动量相等 (8×450 + 8×400 = 10×680 + 误差补偿)
+
+    // 停顿
+    stopAll();
+    vTaskDelay(pdMS_TO_TICKS(150));
+
+    // 缓慢回中（左转回位）
+    turnLeft(8);
+    vTaskDelay(pdMS_TO_TICKS(400));
+
+    // 最后停顿
+    stopAll();
+    vTaskDelay(pdMS_TO_TICKS(100));
+}
+
+// 小幅度"倾斜"动作（单侧转动）
+void WheelMovements::speakingGestureTilt()
+{
+    if (!_initialized)
+    {
+        return;
+    }
+
+    // 随机选择左倾或右倾
+    bool tilt_left = (esp_random() % 2) == 0;
+
+    ESP_LOGI(TAG, "🔄 倾斜方向: %s", tilt_left ? "左倾" : "右倾");
+
+    if (tilt_left)
+    {
+        // 缓慢左倾：左轮慢，右轮稍快
+        setWheelSpeeds(8, 10);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+    else
+    {
+        // 缓慢右倾：左轮稍快，右轮慢
+        setWheelSpeeds(10, 8);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    // 停顿
+    stopAll();
+    vTaskDelay(pdMS_TO_TICKS(250));
+
+    ESP_LOGI(TAG, "↩️  开始回位");
+
+    // 缓慢回位（完全反向，速度取负值）
+    if (tilt_left)
+    {
+        // 左倾后回位：完全反向 (8,10) → (-8,-10)
+        setWheelSpeeds(-8, -10);
+    }
+    else
+    {
+        // 右倾后回位：完全反向 (10,8) → (-10,-8)
+        setWheelSpeeds(-10, -8);
+    }
+    vTaskDelay(pdMS_TO_TICKS(550)); // 回位时间略长确保完全回中
+
+    // 最后停顿
+    stopAll();
+    vTaskDelay(pdMS_TO_TICKS(100));
+}
+
+// 随机执行一个讲话动作
+void WheelMovements::performRandomSpeakingGesture()
+{
+    if (!_initialized)
+    {
+        return;
+    }
+
+    // 获取当前时间（微秒）
+    int64_t current_time = esp_timer_get_time();
+
+    // 最小间隔时间：2-5秒之间随机（避免动作太频繁）
+    int64_t min_interval_us = (2000 + (esp_random() % 3000)) * 1000; // 2000-5000ms
+
+    // 检查距离上次动作的时间
+    if (_last_speaking_gesture_time > 0 &&
+        (current_time - _last_speaking_gesture_time) < min_interval_us)
+    {
+        // 时间间隔太短，不执行动作
+        return;
+    }
+
+    // 更新上次动作时间
+    _last_speaking_gesture_time = current_time;
+
+    // 随机选择一个动作（0-19）
+    // 30% 点头，10% 摇头，10% 倾斜，50% 不动作
+    int gesture_choice = esp_random() % 20;
+    int selected_gesture = 0; // 0=不动作, 1=点头, 2=摇头, 3=倾斜
+
+    if (gesture_choice < 6)
+    {
+        selected_gesture = 1; // 点头 (0-5，共6个，30%)
+    }
+    else if (gesture_choice < 8)
+    {
+        selected_gesture = 2; // 摇头 (6-7，共2个，10%)
+    }
+    else if (gesture_choice < 10)
+    {
+        selected_gesture = 3; // 倾斜 (8-9，共2个，10%)
+    }
+    // else: selected_gesture = 0 (不动作，10-19，共10个，50%)
+
+    // 执行动作
+    switch (selected_gesture)
+    {
+    case 1:
+        ESP_LOGI(TAG, "🗣️ Speaking gesture: Nod");
+        speakingGestureNod();
+        break;
+    case 2:
+        ESP_LOGI(TAG, "🗣️ Speaking gesture: Shake");
+        speakingGestureShake();
+        break;
+    case 3:
+        ESP_LOGI(TAG, "🗣️ Speaking gesture: Tilt");
+        speakingGestureTilt();
+        break;
+    default:
+        // 不动作
+        break;
+    }
+}
 void WheelMovements::danceZigzag()
 {
     if (!_initialized)

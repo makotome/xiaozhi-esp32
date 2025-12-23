@@ -4,7 +4,7 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_log.h>
-#include <wifi_station.h>
+#include <wifi_manager.h>
 
 #include "application.h"
 #include "codecs/no_audio_codec.h"
@@ -21,6 +21,7 @@
 #include "wifi_board.h"
 #include "wheel_robot_controller.h"
 #include "remote_control_integration.h"
+#include "assets/lang_config.h"
 
 #define TAG "CubeRobot"
 
@@ -115,9 +116,9 @@ private:
         boot_button_.OnClick([this]()
                              {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting &&
-                !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState(); });
 
@@ -216,9 +217,55 @@ public:
         InitializeRemoteControlMode(); // 初始化遥控模式功能
         GetBacklight()->RestoreBrightness();
 
+        // 启动讲话动作定时器
+        auto *wheel_controller = GetWheelRobotController();
+        if (wheel_controller)
+        {
+            wheel_controller->InitializeSpeakingGestureTimer();
+        }
+
         ESP_LOGI(TAG, "Cube Robot 初始化完成");
         ESP_LOGI(TAG, "按 MODE_BUTTON (GPIO_%d) 切换模式", MODE_BUTTON_GPIO);
         ESP_LOGI(TAG, "模式循环: 小智 -> WiFi遥控"); // 修改日志信息
+    }
+
+    virtual void StartNetwork() override
+    {
+        auto &wifi_manager = WifiManager::GetInstance();
+
+        // Initialize WiFi manager with custom SSID prefix for Cube Robot
+        WifiManagerConfig config;
+        config.ssid_prefix = "Cube-Robot";
+        config.language = Lang::CODE;
+        wifi_manager.Initialize(config);
+
+        // Set unified event callback - forward to NetworkEvent with SSID data
+        wifi_manager.SetEventCallback([this, &wifi_manager](WifiEvent event)
+                                      {
+            std::string ssid = wifi_manager.GetSsid();
+            switch (event) {
+                case WifiEvent::Scanning:
+                    OnNetworkEvent(NetworkEvent::Scanning);
+                    break;
+                case WifiEvent::Connecting:
+                    OnNetworkEvent(NetworkEvent::Connecting, ssid);
+                    break;
+                case WifiEvent::Connected:
+                    OnNetworkEvent(NetworkEvent::Connected, ssid);
+                    break;
+                case WifiEvent::Disconnected:
+                    OnNetworkEvent(NetworkEvent::Disconnected);
+                    break;
+                case WifiEvent::ConfigModeEnter:
+                    OnNetworkEvent(NetworkEvent::WifiConfigModeEnter);
+                    break;
+                case WifiEvent::ConfigModeExit:
+                    OnNetworkEvent(NetworkEvent::WifiConfigModeExit);
+                    break;
+            } });
+
+        // Try to connect or enter config mode
+        TryWifiConnect();
     }
 
     virtual AudioCodec *GetAudioCodec() override

@@ -10,6 +10,7 @@
 #ifndef WHEEL_MOVEMENTS_H
 #define WHEEL_MOVEMENTS_H
 
+#include <cstdint>
 #include "wheel_servo.h"
 
 class WheelMovements
@@ -54,11 +55,18 @@ public:
     // 中断跳舞
     void interruptDance(); // 中断正在进行的舞蹈
 
+    // 讲话时的自然动作
+    void speakingGestureNod();           // 小幅度"点头"动作（前后微动）
+    void speakingGestureShake();         // 小幅度"摇头"动作（左右微动）
+    void speakingGestureTilt();          // 小幅度"倾斜"动作（单侧转动）
+    void performRandomSpeakingGesture(); // 随机执行一个讲话动作
+
 private:
     WheelServo *_leftWheel;
     WheelServo *_rightWheel;
     bool _initialized;
-    volatile bool _dance_interrupted; // 舞蹈中断标志
+    volatile bool _dance_interrupted;    // 舞蹈中断标志
+    int64_t _last_speaking_gesture_time; // 上次执行讲话动作的时间（微秒）
 };
 
 #endif // WHEEL_MOVEMENTS_H

@@ -8,8 +8,11 @@
 
 #include <esp_log.h>
 #include <esp_random.h>
+#include <esp_timer.h>
 
 #include "mcp_server.h"
+#include "application.h"
+#include "device_state.h"
 
 #define TAG "WheelRobotController"
 
@@ -97,6 +100,11 @@ void WheelRobotController::ActionTask(void *arg)
                 controller->wheels_.moveBackwardWithDirection(params.speed, params.direction);
                 break;
 
+            case ACTION_SPEAKING_GESTURE:
+                // 讲话时的自然动作（随机执行）
+                controller->wheels_.performRandomSpeakingGesture();
+                break;
+
             default:
                 ESP_LOGW(TAG, "未知动作类型: %d", params.action_type);
                 break;
@@ -142,7 +150,8 @@ void WheelRobotController::QueueAction(int action_type, int speed, int duration_
 
 // 构造函数
 WheelRobotController::WheelRobotController()
-    : action_task_handle_(nullptr), action_queue_(nullptr), is_action_in_progress_(false)
+    : action_task_handle_(nullptr), action_queue_(nullptr), is_action_in_progress_(false),
+      speaking_gesture_timer_(nullptr), was_speaking_(false)
 {
     ESP_LOGI(TAG, "初始化两轮机器人控制器...");
 
@@ -167,9 +176,86 @@ WheelRobotController::WheelRobotController()
     ESP_LOGI(TAG, "两轮机器人控制器初始化成功");
 }
 
+// 讲话动作定时器回调 - 定期检查状态并触发动作
+void WheelRobotController::SpeakingGestureTimerCallback(void *arg)
+{
+    WheelRobotController *controller = static_cast<WheelRobotController *>(arg);
+    if (!controller)
+    {
+        return;
+    }
+
+    // 检查当前设备状态
+    auto &app = Application::GetInstance();
+    DeviceState current_state = app.GetDeviceState();
+    bool is_speaking = (current_state == kDeviceStateSpeaking);
+
+    // 检测状态变化
+    if (is_speaking && !controller->was_speaking_)
+    {
+        // 刚进入讲话状态
+        ESP_LOGI(TAG, "🗣️ 进入讲话状态，开始随机动作");
+        controller->was_speaking_ = true;
+    }
+    else if (!is_speaking && controller->was_speaking_)
+    {
+        // 离开讲话状态
+        ESP_LOGI(TAG, "🔇 离开讲话状态，停止动作");
+        controller->was_speaking_ = false;
+    }
+
+    // 如果在讲话状态，触发随机动作
+    if (is_speaking)
+    {
+        controller->TriggerSpeakingGesture();
+    }
+}
+
+// 初始化讲话动作定时器
+void WheelRobotController::InitializeSpeakingGestureTimer()
+{
+    if (speaking_gesture_timer_ != nullptr)
+    {
+        ESP_LOGW(TAG, "讲话动作定时器已初始化");
+        return;
+    }
+
+    // 创建定时器（每 3-6 秒检查一次状态）
+    esp_timer_create_args_t timer_args = {
+        .callback = &SpeakingGestureTimerCallback,
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "speaking_gesture",
+        .skip_unhandled_events = true};
+
+    ESP_ERROR_CHECK(esp_timer_create(&timer_args, &speaking_gesture_timer_));
+
+    // 启动定时器，每 3.5 秒检查一次
+    ESP_ERROR_CHECK(esp_timer_start_periodic(speaking_gesture_timer_, 3500 * 1000)); // 3500ms
+
+    ESP_LOGI(TAG, "✅ 讲话动作定时器启动（间隔: 3.5s）");
+}
+
+// 触发讲话时的自然动作
+void WheelRobotController::TriggerSpeakingGesture()
+{
+    // 不在其他动作进行时触发，避免干扰
+    if (!is_action_in_progress_)
+    {
+        QueueAction(ACTION_SPEAKING_GESTURE);
+    }
+}
+
 // 析构函数
 WheelRobotController::~WheelRobotController()
 {
+    if (speaking_gesture_timer_ != nullptr)
+    {
+        esp_timer_stop(speaking_gesture_timer_);
+        esp_timer_delete(speaking_gesture_timer_);
+        speaking_gesture_timer_ = nullptr;
+    }
+
     if (action_task_handle_ != nullptr)
     {
         vTaskDelete(action_task_handle_);

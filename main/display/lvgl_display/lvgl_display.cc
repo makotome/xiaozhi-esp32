@@ -94,6 +94,9 @@ void LvglDisplay::ShowNotification(const char* notification, int duration_ms) {
     lv_obj_remove_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
 
+    // 更新时间戳，防止在通知显示期间被时间覆盖
+    last_status_update_time_ = std::chrono::system_clock::now();
+
     esp_timer_stop(notification_timer_);
     ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, duration_ms * 1000));
 }
@@ -122,7 +125,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
 
     // Update time
     if (app.GetDeviceState() == kDeviceStateIdle) {
-        if (last_status_update_time_ + std::chrono::seconds(10) < std::chrono::system_clock::now()) {
+        if (last_status_update_time_ + std::chrono::seconds(5) < std::chrono::system_clock::now()) {
             // Set status to clock "HH:MM"
             time_t now = time(NULL);
             struct tm* tm = localtime(&now);
