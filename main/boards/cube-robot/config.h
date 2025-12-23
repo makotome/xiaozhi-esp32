@@ -33,22 +33,22 @@
  */
 #define POWER_VOLTAGE_SENSE_PIN GPIO_NUM_1
 #define POWER_ADC_UNIT ADC_UNIT_1
-#define POWER_ADC_CHANNEL ADC_CHANNEL_0 // GPIO1 = ADC1_CH0
+#define POWER_ADC_CHANNEL ADC_CHANNEL_0  // GPIO1 = ADC1_CH0
 /**
  * 左侧舵机组 (物理聚类: Pin8-12, 芯片左侧中部)
  * 使用连续的GPIO以便于布线
  */
-#define LEFT_LEG_PIN GPIO_NUM_17  // Pin10: 左腿舵机
-#define LEFT_FOOT_PIN GPIO_NUM_18 // Pin11: 左脚舵机
-#define LEFT_HAND_PIN GPIO_NUM_8  // Pin12: 左手舵机
+#define LEFT_LEG_PIN GPIO_NUM_17   // Pin10: 左腿舵机
+#define LEFT_FOOT_PIN GPIO_NUM_18  // Pin11: 左脚舵机
+#define LEFT_HAND_PIN GPIO_NUM_8   // Pin12: 左手舵机
 
 /**
  * 右侧舵机组 (物理聚类: Pin31-33, 芯片右侧中部)
  * 与左侧对称布局，便于机械结构设计
  */
-#define RIGHT_LEG_PIN GPIO_NUM_40  // Pin31: 右腿舵机
-#define RIGHT_FOOT_PIN GPIO_NUM_39 // Pin32: 右脚舵机
-#define RIGHT_HAND_PIN GPIO_NUM_38 // Pin33: 右手舵机
+#define RIGHT_LEG_PIN GPIO_NUM_40   // Pin31: 右腿舵机
+#define RIGHT_FOOT_PIN GPIO_NUM_39  // Pin32: 右脚舵机
+#define RIGHT_HAND_PIN GPIO_NUM_38  // Pin33: 右手舵机
 
 #define AUDIO_INPUT_SAMPLE_RATE 16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
@@ -59,18 +59,18 @@
  * I2S0 用于麦克风输入
  * 注意: 这些引脚具有ADC功能，但I2S优先级更高
  */
-#define AUDIO_I2S_MIC_GPIO_WS GPIO_NUM_4  // Pin4:  Word Select (LRCK)
-#define AUDIO_I2S_MIC_GPIO_SCK GPIO_NUM_5 // Pin5:  Serial Clock (BCLK)
-#define AUDIO_I2S_MIC_GPIO_DIN GPIO_NUM_6 // Pin6:  Data In
+#define AUDIO_I2S_MIC_GPIO_WS GPIO_NUM_4   // Pin4:  Word Select (LRCK)
+#define AUDIO_I2S_MIC_GPIO_SCK GPIO_NUM_5  // Pin5:  Serial Clock (BCLK)
+#define AUDIO_I2S_MIC_GPIO_DIN GPIO_NUM_6  // Pin6:  Data In
 
 /**
  * 扬声器I2S接口 (物理聚类: Pin7-9, 芯片左侧上部)
  * I2S1 用于扬声器输出
  * 注意: GPIO15/16为XTAL_32K_P/N，但已实测可用作I2S，不影响功能
  */
-#define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_7  // Pin7:  Data Out
-#define AUDIO_I2S_SPK_GPIO_BCLK GPIO_NUM_15 // Pin8:  Bit Clock
-#define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_16 // Pin9:  Left/Right Clock
+#define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_7   // Pin7:  Data Out
+#define AUDIO_I2S_SPK_GPIO_BCLK GPIO_NUM_15  // Pin8:  Bit Clock
+#define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_16  // Pin9:  Left/Right Clock
 
 /* ========================================================================
  * 显示屏模块 (LCD Display) - SPI接口
@@ -81,12 +81,12 @@
  * 使用FSPI (GPIO9-14) 用于高速SPI通信
  * 注意: 这些引脚与内部Flash的FSPI复用，但通过片选可以区分
  */
-#define DISPLAY_CS_PIN GPIO_NUM_10       // Pin18: Chip Select (FSPICS0)
-#define DISPLAY_DC_PIN GPIO_NUM_11       // Pin19: Data/Command (FSPID)
-#define DISPLAY_RST_PIN GPIO_NUM_12      // Pin20: Reset (FSPICLK复用)
-#define DISPLAY_MOSI_PIN GPIO_NUM_13     // Pin21: MOSI/SDA (FSPIQ)
-#define DISPLAY_CLK_PIN GPIO_NUM_14      // Pin22: Clock (FSPIWP复用)
-#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_9 // Pin17: 背光PWM控制
+#define DISPLAY_CS_PIN GPIO_NUM_10        // Pin18: Chip Select (FSPICS0)
+#define DISPLAY_DC_PIN GPIO_NUM_11        // Pin19: Data/Command (FSPID)
+#define DISPLAY_RST_PIN GPIO_NUM_12       // Pin20: Reset (FSPICLK复用)
+#define DISPLAY_MOSI_PIN GPIO_NUM_13      // Pin21: MOSI/SDA (FSPIQ)
+#define DISPLAY_CLK_PIN GPIO_NUM_14       // Pin22: Clock (FSPIWP复用)
+#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_9  // Pin17: 背光PWM控制
 
 #define LCD_TYPE_ST7789_SERIAL
 #define DISPLAY_WIDTH 240
@@ -127,4 +127,4 @@
 
 #define CUBE_ROBOT_VERSION "1.0.0"
 
-#endif // _BOARD_CONFIG_H_
+#endif  // _BOARD_CONFIG_H_

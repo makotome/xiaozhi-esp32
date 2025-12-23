@@ -668,4 +668,4 @@ const char REMOTE_CONTROL_HTML[] = R"rawliteral(
 </html>
 )rawliteral";
 
-#endif // REMOTE_CONTROL_WEB_UI_H
+#endif  // REMOTE_CONTROL_WEB_UI_H

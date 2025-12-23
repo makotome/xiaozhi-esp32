@@ -11,29 +11,28 @@
 
 class OttoEmojiDisplay;
 
-class LightMcpController
-{
-public:
-    LightMcpController(OttoEmojiDisplay *display);
-    ~LightMcpController();
+class LightMcpController {
+ public:
+  LightMcpController(OttoEmojiDisplay* display);
+  ~LightMcpController();
 
-    // 初始化并注册MCP工具
-    bool init();
+  // 初始化并注册MCP工具
+  bool init();
 
-    // 注册灯光相关的MCP工具
-    void RegisterMcpTools();
+  // 注册灯光相关的MCP工具
+  void RegisterMcpTools();
 
-    // 获取灯光控制器
-    ColorfulLightController *getLightController() { return light_controller_; }
+  // 获取灯光控制器
+  ColorfulLightController* getLightController() { return light_controller_; }
 
-private:
-    ColorfulLightController *light_controller_;
+ private:
+  ColorfulLightController* light_controller_;
 };
 
 // 全局初始化函数
-void InitializeLightMcpController(OttoEmojiDisplay *display);
+void InitializeLightMcpController(OttoEmojiDisplay* display);
 
 // 获取全局实例
-LightMcpController *GetLightMcpController();
+LightMcpController* GetLightMcpController();
 
-#endif // LIGHT_MCP_CONTROLLER_H
+#endif  // LIGHT_MCP_CONTROLLER_H

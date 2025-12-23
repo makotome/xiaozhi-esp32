@@ -693,6 +693,32 @@ main/boards/cube-robot/ ├── mode_manager.h # 427 行 ├── mode_manage
 3. 在任务的switch中添加case
 4. 在 `light_mcp_controller.cc` 中注册新工具
 
+### 代码格式化
+
+本项目使用 **Google C++ 代码风格**。
+
+#### 自动格式化工具配置
+项目根目录已配置 `.clang-format` 文件，使用 Google 风格。VS Code 会在保存时自动格式化。
+
+#### 命令行格式化
+```bash
+# 安装 clang-format（macOS）
+brew install clang-format
+
+# 格式化 cube-robot 目录下所有文件
+find main/boards/cube-robot -name "*.cc" -o -name "*.h" | xargs clang-format -i
+
+# 格式化单个文件
+clang-format -i main/boards/cube-robot/cube_robot.cc
+
+# 查看格式化后的差异（不修改文件）
+clang-format main/boards/cube-robot/cube_robot.cc | diff main/boards/cube-robot/cube_robot.cc -
+```
+
+#### VS Code 快捷键
+- **格式化当前文件**: `Shift + Option + F` (macOS)
+- **格式化选中代码**: 选中后右键 → "Format Selection"
+
 ### 性能优化
 - 根据需求调整动画刷新频率
 - 合理分配FreeRTOS任务优先级
